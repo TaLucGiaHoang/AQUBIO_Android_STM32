@@ -1,2 +1,7 @@
 /.metadata
 /RemoteSystemsTempFiles
+
+build_stm32f7discovery_gcc
+!build_stm32f7discovery_gcc/openocd.cfg
+!build_stm32f7discovery_gcc/Makefile
+

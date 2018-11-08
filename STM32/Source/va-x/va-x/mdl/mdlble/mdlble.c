@@ -33,7 +33,7 @@ static inline void svc_perror(const char *file, int_t line, const char *expr, ER
 }
 #define	SVC_PERROR(expr)	svc_perror(__FILE__, __LINE__, #expr, (expr))
 
-#define BLE_HEADER_SIZE			4	/* サービス番号(1) + データ長(2) + チェックサム(1)*/
+#define BLE_HEADER_SIZE			4   // ID(1) + size(1) + command(1) + subcommand(1)
 #define BLE_RESPONSE_DATA_SIZE	2	/* サービス番号(1) + 応答コード(1) */
 
 /*
@@ -54,9 +54,13 @@ static_assert(sizeof(MDLBLE_MPFBLK_T) == MDLBLE_MPFBLK_SIZE, "MPF size");
 
 // ヘッダ情報
 typedef struct {
-    uint8_t service;
-    uint16_t length;
-    uint8_t checksum;
+//    uint8_t service;
+//    uint16_t length;
+//    uint8_t checksum;
+    uint8_t id;
+    uint8_t size;
+    uint8_t command;
+    uint8_t subcommand;
 } MDLBLE_HEADER_INFO_T;
 
 // コンテキスト
@@ -100,7 +104,7 @@ static int mble_start();
 static int mble_stop();
 
 // 送信
-static void mble_send(uint8_t service, const uint8_t* data, size_t length);
+static void mble_send(uint16_t command, const uint8_t* data, size_t length);
 
 // 受信バッファ返却
 static void mble_return_buffer(const uint8_t* data);
@@ -114,6 +118,7 @@ static void drvble_callback_resp(int32_t evt, int32_t error, intptr_t opt);
 // 受信時の処理
 static void mble_on_receive(int32_t error);
 
+#if 0
 // チェックサム計算
 static uint8_t mble_calc_crc(const MDLBLE_DATA_T* data);
 
@@ -125,6 +130,9 @@ static void process_service_0(const uint8_t* data);
 
 // CRC計算
 static uint8_t crc8_itu(uint8_t crc, const void *buf, size_t size);
+#endif
+
+static uint8_t checksum(const void *buf, size_t size);
 
 /*
  * 定数定義
@@ -162,6 +170,7 @@ enum {
 // 受信状態
 enum {
     RECEIVING_STATUS_IDLE = 0,		// アイドル
+    RECEIVING_STATUS_HEADER_ID,		// "@"
     RECEIVING_STATUS_HEADER,		// ヘッダ待機中
     RECEIVING_STATUS_DATA,			// データ待機中
     RECEIVING_STATUS_DISCARDING,	// 読み捨て中
@@ -195,7 +204,9 @@ static const int32_t BLE_SEND_RETRY_COUNT = 3;
 static MDLBLE_CONTEXT_T s_context = {0};
 
 static uint8_t s_header_buf[BLE_HEADER_SIZE];
+#if 0
 static uint8_t s_response_buf[BLE_HEADER_SIZE + BLE_RESPONSE_DATA_SIZE];
+#endif
 //static uint8_t s_send_header_buf[BLE_HEADER_SIZE];
 static uint8_t s_send_buf[BLE_HEADER_SIZE + MDLBLE_MAX_DATA_LEN];
 
@@ -238,9 +249,9 @@ void mdlble_restart()
 /*
  * 送信
  */
-void mdlble_send(uint8_t service, const uint8_t* data, size_t length)
+void mdlble_send(uint16_t command, const uint8_t* data, size_t length)
 {
-    mpf_send(MSG_SEND, service, (intptr_t)data, length, 0);
+    mpf_send(MSG_SEND, 0, (intptr_t)data, length, (intptr_t)command);
 }
 
 /*
@@ -291,7 +302,7 @@ void mdlble_task(intptr_t exinf)
             mble_return_buffer((const uint8_t*)(blk->data));
             break;
         case MSG_SEND:
-            mble_send(blk->service, (const uint8_t*)(blk->data), blk->length);
+            mble_send((uint16_t)(blk->opt1), (const uint8_t*)(blk->data), blk->length);
             break;
 //        case MSG_POWER_OFF:
 //            ble_power_off(blk->callback);
@@ -390,8 +401,8 @@ int mble_start()
     }
 
     // ヘッダ受信待機
-    s_context.receiving.status = RECEIVING_STATUS_HEADER;
-    drvble_receive(s_header_buf, BLE_HEADER_SIZE, -1, drvble_callback);
+    s_context.receiving.status = RECEIVING_STATUS_HEADER_ID;
+    drvble_receive(s_header_buf, 1, -1, drvble_callback);
 
     // ステータス更新
     s_context.status = STATUS_STARTED;
@@ -422,22 +433,23 @@ int mble_stop()
 /*
  * 送信
  */
-void mble_send(uint8_t service, const uint8_t* data, size_t length)
+void mble_send(uint16_t command, const uint8_t* data, size_t length)
 {
-    assert(service > 0);
+    assert(command > 0);
     assert(data);
     assert(length > 0);
 
-    syslog(LOG_NOTICE, "mble_send(s=%d, d=0x%08x, l=%d)", service, data, length);
+    syslog(LOG_NOTICE, "mble_send(c=0x%04x, d=0x%08x, l=%d)", command, data, length);
 
-    s_send_buf[0] = service;	// [0]service number
-    s_send_buf[1] = ((uint8_t*)&(length))[0];		// [1]data length
-    s_send_buf[2] = ((uint8_t*)&(length))[1];		// [2]data length
-    s_send_buf[3] = 0xff;		// [3]checksum: 0xff を入れた状態でCRCを算出する
+    s_send_buf[0] = MDLBLE_PKG_FORMAT_RES_ID; // "*"
+    s_send_buf[1] = length + BLE_HEADER_SIZE + 2; // size
+    s_send_buf[2] = command >> 8; // command
+    s_send_buf[3] = command & 0xff; // subcommand
     memcpy(&(s_send_buf[4]), data, length);	// [4-]data
 
-    // CRC計算
-    s_send_buf[3] = crc8_itu(0, s_send_buf, BLE_HEADER_SIZE + length);
+    // Checksum
+    s_send_buf[length + BLE_HEADER_SIZE] = checksum(s_send_buf, length + BLE_HEADER_SIZE);
+    s_send_buf[length + BLE_HEADER_SIZE + 1] = MDLBLE_PKG_FORMAT_ENDCODE;
 
     bool_t sent = false;
     int send_error = 0;
@@ -450,7 +462,7 @@ void mble_send(uint8_t service, const uint8_t* data, size_t length)
         assert(er == E_OK);
 
         // 送信
-        drvble_send(s_send_buf, BLE_HEADER_SIZE + length, DATA_TIMEOUT, drvble_callback);
+        drvble_send(s_send_buf, s_send_buf[1], DATA_TIMEOUT, drvble_callback);
 
         // 送信完了待ち
         er = twai_flg(FLG_MDLBLE, FLGPTN_DRVBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 1000);
@@ -483,11 +495,13 @@ void mble_return_buffer(const uint8_t* data)
     ER er = rel_mpf(MPF_MDLBLE_DATA, (void**)data);
     assert(er == E_OK);
 
+#if 0
     // AVEILABLEメッセージを投げる
     if (s_context.receiving.busy) {
         mble_send_response(0, RESPONSE_AVAILABLE);
         // ビジーフラグはここでは落とさない
     }
+#endif
 }
 
 /*
@@ -548,36 +562,52 @@ void drvble_callback_resp(int32_t evt, int32_t error, intptr_t opt)
 void mble_on_receive(int32_t error)
 {
     switch (s_context.receiving.status) {
+    case RECEIVING_STATUS_HEADER_ID:
+    {
+        if (MDLBLE_PKG_FORMAT_REQ_ID == s_header_buf[0]) {
+            s_context.receiving.header.id = s_header_buf[0];
+            s_context.receiving.status = RECEIVING_STATUS_HEADER;
+            drvble_receive(s_header_buf, BLE_HEADER_SIZE - 1, DATA_TIMEOUT, drvble_callback);
+        } else {
+            s_context.receiving.status = RECEIVING_STATUS_HEADER_ID;
+            drvble_receive(s_header_buf, 1, -1, drvble_callback);
+        }
+    }
+    break;
     case RECEIVING_STATUS_HEADER:	// ヘッダ受信中
     {
         // ヘッダ情報を保持
-        s_context.receiving.header.service = s_header_buf[0];
-        ((uint8_t*)&(s_context.receiving.header.length))[0] = s_header_buf[1];
-        ((uint8_t*)&(s_context.receiving.header.length))[1] = s_header_buf[2];
-        s_context.receiving.header.checksum = s_header_buf[3];
-        syslog(LOG_NOTICE, "drvble_callback: header{0x%02x, 0x%02x, 0x%02x}", s_context.receiving.header.service, s_context.receiving.header.length, s_context.receiving.header.checksum);
+        s_context.receiving.header.size = s_header_buf[0];
+        s_context.receiving.header.command = s_header_buf[1];
+        s_context.receiving.header.subcommand = s_header_buf[2];
+        syslog(LOG_NOTICE, "drvble_callback: Size 0x%02x, CMD 0x%02x%02x", s_context.receiving.header.size, s_context.receiving.header.command, s_context.receiving.header.subcommand);
 
-        // メモリプールから受信バッファを取得する
-        MDLBLE_DATA_T* data = NULL;
-        ER er = 0;
-        er = tget_mpf(MPF_MDLBLE_DATA, (void**)&data, 0);
-        assert(er == E_OK || er == E_TMOUT);
-        if (er == E_OK) {
-            s_context.receiving.busy = false;
-            s_context.receiving.data = data;
-        } else if (er == E_TMOUT) {
-            // 使用できるバッファが無い場合はビジー状態にする
-            s_context.receiving.busy = true;
-            s_context.receiving.data = NULL;
-        }
+        if (s_context.receiving.header.size > BLE_HEADER_SIZE) {
+            // メモリプールから受信バッファを取得する
+            MDLBLE_DATA_T* data = NULL;
+            ER er = 0;
+            er = tget_mpf(MPF_MDLBLE_DATA, (void**)&data, 0);
+            assert(er == E_OK || er == E_TMOUT);
+            if (er == E_OK) {
+                s_context.receiving.busy = false;
+                s_context.receiving.data = data;
+            } else if (er == E_TMOUT) {
+                // 使用できるバッファが無い場合はビジー状態にする
+                s_context.receiving.busy = true;
+                s_context.receiving.data = NULL;
+            }
 
-        // データ受信開始
-        if (!s_context.receiving.busy) {
-            s_context.receiving.status = RECEIVING_STATUS_DATA;
-            drvble_receive(s_context.receiving.data->body, s_context.receiving.header.length, DATA_TIMEOUT, drvble_callback);
+            // データ受信開始
+            if (!s_context.receiving.busy) {
+                s_context.receiving.status = RECEIVING_STATUS_DATA;
+                drvble_receive(s_context.receiving.data->body, s_context.receiving.header.size - BLE_HEADER_SIZE, DATA_TIMEOUT, drvble_callback);
+            } else {
+                s_context.receiving.status = RECEIVING_STATUS_DISCARDING;
+                drvble_receive(NULL, s_context.receiving.header.size - BLE_HEADER_SIZE, DATA_TIMEOUT, drvble_callback);
+            }
         } else {
-            s_context.receiving.status = RECEIVING_STATUS_DISCARDING;
-            drvble_receive(NULL, s_context.receiving.header.length, DATA_TIMEOUT, drvble_callback);
+            s_context.receiving.status = RECEIVING_STATUS_HEADER_ID;
+            drvble_receive(s_header_buf, 1, -1, drvble_callback);
         }
     }
     break;
@@ -585,41 +615,25 @@ void mble_on_receive(int32_t error)
     {
         assert(!s_context.receiving.busy);	// ビジーの場合はここに到達してはいけない
 
-        uint8_t response = 0;
         // チェックサムを確認
         uint8_t header_buf[BLE_HEADER_SIZE];
-        header_buf[0] = s_context.receiving.header.service;
-        header_buf[1] = ((uint8_t*)&(s_context.receiving.header.length))[0];
-        header_buf[2] = ((uint8_t*)&(s_context.receiving.header.length))[1];
-        header_buf[3] = 0xff;
-        uint8_t crc = 0;
-        crc = crc8_itu(crc, header_buf, BLE_HEADER_SIZE);
-        crc = crc8_itu(crc, s_context.receiving.data->body, s_context.receiving.header.length);
-        //syslog(LOG_NOTICE, "checksum: 0x%02x, 0x%02x", s_context.receiving.header.checksum, crc);
-        if (crc == s_context.receiving.header.checksum) {
-            response = RESPONSE_ACK;
-        } else {
-            response = RESPONSE_CHECKSUM;
-        }
+        header_buf[0] = s_context.receiving.header.id;
+        header_buf[1] = s_context.receiving.header.size;
+        header_buf[2] = s_context.receiving.header.command;
+        header_buf[3] = s_context.receiving.header.subcommand;
+        uint8_t ckc = 0;
+        ckc = checksum(header_buf, BLE_HEADER_SIZE);
+        ckc = ckc ^ checksum(s_context.receiving.data->body, s_context.receiving.header.size - BLE_HEADER_SIZE - 1);
+        syslog(LOG_NOTICE, "checksum: 0x%02x", ckc);
 
-        if (s_context.receiving.header.service != 0) {	// サービス0(受信応答)以外の場合
-            // 応答を返す
-            mble_send_response(s_context.receiving.header.service, response);
-        }
+        // Check checksum and endcode
+        if ((ckc == 0) && (MDLBLE_PKG_FORMAT_ENDCODE == s_context.receiving.data->body[s_context.receiving.header.size - BLE_HEADER_SIZE - 1])) {
+            s_context.receiving.data->size = s_context.receiving.header.size - BLE_HEADER_SIZE - 2;
+            s_context.receiving.data->command = s_context.receiving.header.command << 8 | s_context.receiving.header.subcommand;
 
-        // 受信データチェック
-        if (response == RESPONSE_ACK) {
-            s_context.receiving.data->service = s_context.receiving.header.service;
-            s_context.receiving.data->length = s_context.receiving.header.length;
-
-            if (s_context.receiving.header.service == 0) {
-                // サービス0(受信応答)はBLEミドル内で処理する
-                process_service_0(s_context.receiving.data->body);
-            } else {
-                // 呼出側へコールバック
-                s_context.callback(MDLBLE_EVT_DATA_RECEIVED, (intptr_t)s_context.receiving.data, 0);
-                s_context.receiving.data = NULL;	// バッファはコールバック先で管理する
-            }
+            // 呼出側へコールバック
+            s_context.callback(MDLBLE_EVT_DATA_RECEIVED, (intptr_t)s_context.receiving.data, 0);
+            s_context.receiving.data = NULL;	// バッファはコールバック先で管理する
         }
 
         // バッファ返却
@@ -630,25 +644,17 @@ void mble_on_receive(int32_t error)
         }
 
         // 次のヘッダ受信
-        s_context.receiving.status = RECEIVING_STATUS_HEADER;
-        drvble_receive(s_header_buf, BLE_HEADER_SIZE, -1, drvble_callback);
+        s_context.receiving.status = RECEIVING_STATUS_HEADER_ID;
+        drvble_receive(s_header_buf, 1, -1, drvble_callback);
     }
     break;
     case RECEIVING_STATUS_DISCARDING:	// データ読み捨て中
     {
         assert(s_context.receiving.busy);	// ビジーの場合しかここに到達しない
 
-        uint8_t response = 0;
-        response = RESPONSE_BUSY;
-
-        if (s_context.receiving.header.service != 0) {	// サービス0(受信応答)以外の場合
-            // 応答を返す
-            mble_send_response(s_context.receiving.header.service, response);
-        }
-
         // 次のヘッダ受信
-        s_context.receiving.status = RECEIVING_STATUS_HEADER;
-        drvble_receive(s_header_buf, BLE_HEADER_SIZE, -1, drvble_callback);
+        s_context.receiving.status = RECEIVING_STATUS_HEADER_ID;
+        drvble_receive(s_header_buf, 1, -1, drvble_callback);
     }
     break;
     case RECEIVING_STATUS_IDLE:	// 停止中
@@ -660,6 +666,7 @@ void mble_on_receive(int32_t error)
     }
 }
 
+#if 0
 // チェックサム計算
 uint8_t mble_calc_crc(const MDLBLE_DATA_T* data)
 {
@@ -686,6 +693,7 @@ void mble_send_response(uint8_t service, uint8_t response)
     // 送信
     drvble_send(s_response_buf, sizeof(s_response_buf), DATA_TIMEOUT, drvble_callback_resp);
 }
+
 
 // サービス0を処理
 void process_service_0(const uint8_t* data)
@@ -741,4 +749,17 @@ uint8_t crc8_itu(uint8_t crc, const void *buf, size_t size)
 
 	return crc ^ ~0U;
 }
+#endif
 
+uint8_t checksum(const void *buf, size_t size)
+{
+    uint8_t cksum = 0;
+    const uint8_t *p;
+
+    p = buf;
+    while (size--) {
+        cksum = cksum ^ *p++;
+    }
+
+    return cksum;
+}

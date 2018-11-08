@@ -67,6 +67,8 @@ static const FLGPTN FLGPTN_MDLBLE_SEND_COMPLETE =		(0x1 << 3);
 static const FLGPTN FLGPTN_MDLSTRG_REQUEST_COMPLETE =	(0x1 << 4);
 static const FLGPTN FLGPTN_MDLBLE_RESTART_COMPLETE =	(0x1 << 5);
 
+static const uint8_t const BLE_PIN[] = {0x31, 0x32, 0x33, 0x34};
+
 static const uint8_t const TEST_KEY_PUB[] = {
     0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
     0x01, 0x05, 0x00, 0x03, 0x82, 0x01, 0x0f, 0x00, 0x30, 0x82, 0x01, 0x0a, 0x02, 0x82, 0x01, 0x01,
@@ -155,10 +157,17 @@ static const uint32_t PERMISSION_DEPAIRING =	(0x1 << 1);
  * 内部関数プロトタイプ
  */
 static void mdlble_callback(int event, intptr_t opt1, intptr_t opt2);
+static void aplble_authenticate(const MDLBLE_DATA_T* data);
+static void aplble_set_phone_wifi(const MDLBLE_DATA_T* data);
+static void aplble_update_firmware(const MDLBLE_DATA_T* data);
+
+#if 0
 static void aplble_process_data_1(const MDLBLE_DATA_T* data);
 static int aplble_process_data_1_05(uint8_t* resp_buf, const uint8_t* data, size_t data_len);
 static int aplble_process_data_1_06(uint8_t* resp_buf, const uint8_t* data, size_t data_len);
 static void aplble_process_data_2(const MDLBLE_DATA_T* data);
+#endif
+
 static void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2);
 
 /*
@@ -166,6 +175,8 @@ static void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2);
  */
 // イベント送信先
 static APLEVT_EVENT_RECEIVER_FUNC_T s_event_dest = NULL;
+static char s_ssid[33];
+static char s_password[33];
 
 // コンテキスト
 static struct {
@@ -228,6 +239,8 @@ int32_t aplble_initialize(APLEVT_EVENT_RECEIVER_FUNC_T receiver_func)
     er = act_tsk(TSK_APLBLE_RX);
     assert(er == E_OK);
 
+    memset(s_ssid, 0, sizeof(s_ssid));
+    memset(s_password, 0, sizeof(s_ssid));
 
     return 0;
 }
@@ -349,7 +362,7 @@ void aplble_rx_task(intptr_t exinf)
         MDLBLE_DATA_T* data = NULL;
         ER er_rcv = trcv_dtq(DTQ_APLBLE_RX, (intptr_t*)&data, TMO_FEVR);
         assert(er_rcv == E_OK);
-        DBGLOG2("aplble_rx_task() received: (data=0x%08x, len=%d).", data->body, data->length);
+        DBGLOG2("aplble_rx_task() received: (data=0x%08x, len=%d).", data->body, data->size);
 
 #if 0	// オウム返しテスト
         clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
@@ -360,7 +373,7 @@ void aplble_rx_task(intptr_t exinf)
         mdlble_return_buffer(data);
 #endif
 
-#if 1
+#if 0
         switch (data->service) {
         case 1:	// 通信制御
             aplble_process_data_1(data);
@@ -373,6 +386,21 @@ void aplble_rx_task(intptr_t exinf)
             break;
         }
 #endif
+
+        switch (data->command) {
+        case MDLBLE_CMD_AUTHENTICATE:
+            aplble_authenticate(data);
+            break;
+        case MDLBLE_CMD_SET_PHONE_WIFI:
+            aplble_set_phone_wifi(data);
+            break;
+        case MDLBLE_CMD_UPDATE_FIRMWARE:
+            aplble_update_firmware(data);
+            break;
+        default:
+            assert(false);
+            break;
+        }
 
         if (data) {
             mdlble_return_buffer((const uint8_t*)data);
@@ -422,6 +450,48 @@ void mdlble_callback(int event, intptr_t opt1, intptr_t opt2)
     }
 }
 
+void aplble_authenticate(const MDLBLE_DATA_T* data)
+{
+    if ((data->size == sizeof(BLE_PIN)) && (0 == memcmp(data->body, BLE_PIN, sizeof(BLE_PIN)))) {
+        mdlble_send(data->command, (uint8_t*)"OK", 2);
+        DBGLOG0("aplble_authenticate OK");
+    } else {
+        mdlble_send(data->command, (uint8_t*)"NG", 2);
+        DBGLOG0("aplble_authenticate FAIL");
+    }
+}
+
+void aplble_set_phone_wifi(const MDLBLE_DATA_T* data)
+{
+    DBGLOG0("aplble_set_phone_wifi");
+    memcpy(s_ssid, &data->body[0], 32);
+    memcpy(s_password, &data->body[32], 32);
+    DBGLOG2("SSID: %s, password: %s", s_ssid, s_password);
+    mdlble_send(data->command, (uint8_t*)"OK", 2);
+}
+
+void aplble_update_firmware(const MDLBLE_DATA_T* data)
+{
+    DBGLOG0("aplble_update_firmware");
+
+    int ret = 0;
+    if (s_ssid[0] == 0) {
+        ret = 0;
+    } else {
+        //DEBUG
+        ret = 1;
+        // TODO update firmware
+        // ret = update_firmware(s_ssid, s_password);
+    }
+
+    if (ret) {
+        mdlble_send(data->command, (uint8_t*)"OK", 2);
+    } else {
+        mdlble_send(data->command, (uint8_t*)"NG", 2);
+    }
+}
+
+#if 0
 void aplble_process_data_1(const MDLBLE_DATA_T* data)
 {
     assert(data);
@@ -972,6 +1042,7 @@ void aplble_process_data_2(const MDLBLE_DATA_T* data)
 
     return;
 }
+#endif
 
 /*
  * ストレージミドルコールバック

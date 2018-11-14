@@ -19,11 +19,13 @@
 /* エラー種別 */
 #define DRVWIFI_ERROR_NONE			0
 #define DRVWIFI_ERROR_TIMEOUT		1
+#define DRVWIFI_ERROR_CANCELLED     2
 
 #define DRVWIFI_MAX_ESSID_LEN		32	// ESSID最大長
 #define DRVWIFI_MAX_PASSPHRASE_LEN	64	// パスフレーズ最大長
 #define DRVWIFI_MAX_HOSTNAME_LEN	32	// ホスト名最大長
 #define DRVWIFI_MAX_PATH_LEN		32	// パス最大長
+#define DRVWIFI_MAX_IP_ADDRESS_LEN  16
 
 /* メモリプールブロック長(内部用) */
 #define DRVWIFI_MPFBLK_SIZE		12
@@ -71,6 +73,11 @@ typedef struct {
     size_t path_len;
 } DRVWIFI_HTTPS_POST_REQ;
 
+typedef struct {
+    uint8_t ip_address[DRVWIFI_MAX_IP_ADDRESS_LEN];
+    uint16_t port;
+} DRVWIFI_TCP_CONFIG;
+
 /*
  * 定数
  */
@@ -88,6 +95,10 @@ enum {
     DRVWIFI_EVT_HTTP_GET_COMPLETE,
     DRVWIFI_EVT_HTTP_POST_COMPLETE,
     DRVWIFI_EVT_HTTP_DISCONNECT_COMPLETE,
+    DRVWIFI_EVT_TCP_CONNECT_COMPLETE,
+    DRVWIFI_EVT_TCP_SEND_COMPLETE,
+    DRVWIFI_EVT_TCP_RECEIVE_COMPLETE,
+    DRVWIFI_EVT_TCP_SERVER_COMPLETE,
     DRVWIFI_EVT_DISCONNECTED,
 };
 
@@ -96,6 +107,14 @@ enum {
     DRVWIFI_SECURITY_NONE = 0,
     DRVWIFI_SECURITY_WPA,
     DRVWIFI_SECURITY_WPA2,
+};
+
+enum {
+    DRVWIFI_RESULT_OK = 0,
+    DRVWIFI_RESULT_ERROR,
+    DRVWIFI_RESULT_BUSY,
+    DRVWIFI_RESULT_NO_CARRIER,
+    DRVWIFI_RESULT_CONNECT,
 };
 
 /*
@@ -126,6 +145,8 @@ void drvwifi_ap_connect(const uint8_t* essid, size_t essid_len, const uint8_t* p
 /* WPSでAPに接続 */
 void drvwifi_ap_connect_wps();
 
+void drvwifi_tcp_connect(const uint8_t* ip_address, uint16_t port);
+
 /* HTTPS 接続 */
 void drvwifi_https_connect();
 
@@ -137,6 +158,10 @@ void drvwifi_https_post();
 
 /* HTTPS 切断 */
 void drvwifi_https_disconnect();
+
+void drvwifi_send(const uint8_t* data, size_t size);
+
+void drvwifi_receive(uint8_t* data, size_t size);
 
 /*
  * 内部関数

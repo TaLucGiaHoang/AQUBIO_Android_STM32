@@ -469,9 +469,9 @@ void wifi_tcp_client(const uint8_t* ip_addr, const uint16_t port)
     int result;
 
     // Close all sockets
-    DBGLOG1("SEND: \"%s\"", ATCMD_CLOSE_SOCKET);
-    uart_send_at((const uint8_t*) ATCMD_CLOSE_SOCKET, sizeof(ATCMD_CLOSE_SOCKET) - 1, false);
-    result = wifi_get_result();
+//    DBGLOG1("SEND: \"%s\"", ATCMD_CLOSE_SOCKET);
+//    uart_send_at((const uint8_t*) ATCMD_CLOSE_SOCKET, sizeof(ATCMD_CLOSE_SOCKET) - 1, false);
+//    result = wifi_get_result();
 
     // Create TCP socket
     DBGLOG1("SEND: \"%s\"", ATCMD_CREATE_SOCKET);

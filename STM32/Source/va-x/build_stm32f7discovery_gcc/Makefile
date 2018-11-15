@@ -179,6 +179,7 @@ VAX_APPL_DIR = \
 	$(APPLDIR)/mdl/mdlstrg \
 	$(APPLDIR)/cmn/cmnbuf \
 	$(APPLDIR)/drv/drvflx \
+	$(APPLDIR)/drv/drviflx \
 	$(APPLDIR)/apl/aplui \
 	$(APPLDIR)/cmn/cmndbg \
 	$(APPLDIR)/cmn/cmnmalc \
@@ -233,6 +234,7 @@ VAX_APPL_COBJS = \
 	drvicc.o \
 	aplauth.o \
 	aplble.o \
+	bootloader.o \
 	aplmain.o \
 	aplevt.o \
 	mdlauth.o \
@@ -241,6 +243,9 @@ VAX_APPL_COBJS = \
 	aplui.o \
 	cmnbuf.o \
 	drvflx.o \
+	drviflx.o \
+	drviflx_hal.o \
+	drviflx_hal_ex.o \
 	cmndbg.o \
 	cmnmalc.o \
 	cmncrypt.o \

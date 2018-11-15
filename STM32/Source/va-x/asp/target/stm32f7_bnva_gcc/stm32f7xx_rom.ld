@@ -1,6 +1,7 @@
 MEMORY
 {
-    ROM (rx) : ORIGIN = 0x08000000, LENGTH = 1024K
+	ROM1 (rx) : ORIGIN = 0x08000000, LENGTH = 256K
+    ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 768K
     RAM1 (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
     RAM2 (rwx) : ORIGIN = 0x20020000, LENGTH = 368K
 }
@@ -15,21 +16,31 @@ STARTUP(start.o)
 
 SECTIONS
 {
+    .startup :
+    {
+    } > ROM2
+    .program :
+    {
+        . = ALIGN(4);
+        *apl*(.text*)
+    } > ROM2
+
     .text :
     {
-        __text = . ; 
         KEEP(*(.vector))
-	    . = ALIGN(16);
+        . = ALIGN(16);
+        __text = . ;
         *(.text*)
         *(.glue_7t)
         *(.glue_7)
-    } > ROM
+    } > ROM1
+
     _etext = .	;
     PROVIDE (etext = .)	;
 
     .rodata : { 
         *(.rodata*) 
-    } > ROM
+    } > ROM1
 
     . = ALIGN(4);
     __idata_start = . ;

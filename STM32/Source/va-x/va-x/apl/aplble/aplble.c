@@ -471,10 +471,18 @@ void mdlble_callback(int event, intptr_t opt1, intptr_t opt2)
 void aplble_authenticate(const MDLBLE_DATA_T* data)
 {
     if ((data->size == sizeof(BLE_PIN)) && (0 == memcmp(data->body, BLE_PIN, sizeof(BLE_PIN)))) {
+        clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
         mdlble_send(data->command, (uint8_t*)"OK", 2);
+        FLGPTN flgptn = 0;
+        ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+        assert(er == E_OK);
         DBGLOG0("aplble_authenticate OK");
     } else {
+        clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
         mdlble_send(data->command, (uint8_t*)"NG", 2);
+        FLGPTN flgptn = 0;
+        ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+        assert(er == E_OK);
         DBGLOG0("aplble_authenticate FAIL");
     }
 }
@@ -485,7 +493,12 @@ void aplble_set_phone_wifi(const MDLBLE_DATA_T* data)
     memcpy(s_ssid, &data->body[0], 32);
     memcpy(s_password, &data->body[32], 32);
     DBGLOG2("SSID: %s, password: %s", s_ssid, s_password);
+    dly_tsk(1000);
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
     mdlble_send(data->command, (uint8_t*)"OK", 2);
+    FLGPTN flgptn = 0;
+    ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+    assert(er == E_OK);
 }
 
 void aplble_update_firmware(const MDLBLE_DATA_T* data)
@@ -530,11 +543,13 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
 
         // TODO check if DHCP works
         if (ret) {
+            clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
             mdlble_send(data->command, (uint8_t*) "OK", 2);
             FLGPTN flgptn = 0;
             ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 5000);
             assert(er == E_OK);
         } else {
+            clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
             mdlble_send(data->command, (uint8_t*) "NG", 2);
             FLGPTN flgptn = 0;
             ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 5000);

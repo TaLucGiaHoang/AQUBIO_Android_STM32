@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">AQUBIO Service Tool</string>
+
+    <!-- Login view -->
+    <string name="strLogin_ID">Login ID</string>
+    <string name="strLogin_Pass">Password</string>
+    <string name="strLogin_Name">Name</string>
+    <string name="strLogin_Execute">Execute</string>
+
+    <!-- ID Maintenance view -->
+    <string name="strTitleMaintenance">Register Maintenance ID</string>
+    <string name="strIDMaintenance_Skip">Skip</string>
+    <string name="strIDMaintenance_Register">Register</string>
+
+    <!-- Menu view -->
+    <string name="strTitleMain">Menu</string>
+    <string name="strBLEMain">BLE Connect</string>
+    <string name="strBLEMainOff">Off</string>
+    <string name="strBLEMainOn">On</string>
+    <string name="strBTNMainFirmware">Firmware update</string>
+
+    <!-- File view -->
+    <string name="strTitleFirmware">Version up</string>
+    <string name="strSSID">SSID</string>
+    <string name="strButtonReadFile">Read file</string>
+    <string name="strButtonBack">Back</string>
+    <string name="strButtonSet">Set</string>
+    <string name="title_activity_frimware_update">ActivityFrimwareUpdate</string>
+
+</resources>

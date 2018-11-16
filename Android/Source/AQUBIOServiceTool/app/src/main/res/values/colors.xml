@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#3F51B5</color>
+    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorAccent">#FF4081</color>
+
+
+    <color name="background">#4BACC6</color>
+
+    <color name="editBorder">#3F51B5</color>
+
+    <color name="textWhite">#FFFFFF</color>
+
+    <color name="buttonLime">#00B050</color>
+    <color name="buttonLimeHit">#007b38</color>
+    <color name="buttonOrange">#e46c0a</color>
+    <color name="buttonOrangeHit">#9f4b07</color>
+    <color name="buttonRed">#e50000</color>
+    <color name="buttonRedHit">#990000</color>
+    <color name="buttonReadFile">#95B3D7</color>
+    <color name="buttonReadFileHit">#596b81</color>
+    <color name="buttonGray">#DCDCDC</color>
+
+
+
+</resources>

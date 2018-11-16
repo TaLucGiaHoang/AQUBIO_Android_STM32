@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".ActivityLogin">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:background="@color/background">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="25dp"
+                android:text="@string/strLogin_ID"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"/>
+
+            <EditText
+                android:id="@+id/txt_loginID"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/edittex_border"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:paddingLeft="5dp"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginTop="15dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="25dp"
+                android:text="@string/strLogin_Pass"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"/>
+
+            <EditText
+                android:id="@+id/txt_loginPass"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:inputType="textPassword"
+                android:background="@drawable/edittex_border"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:paddingLeft="5dp"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginTop="15dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="25dp"
+                android:text="@string/strLogin_Name"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"/>
+
+            <EditText
+                android:id="@+id/txt_loginName"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/edittex_border"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:paddingLeft="5dp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginTop="80dp"
+            android:gravity="right">
+
+            <Button
+                android:id="@+id/btn_Execute"
+                android:background="@drawable/custom_button"
+                android:layout_width="wrap_content"
+                android:layout_height="55dp"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:text="@string/strLogin_Execute"
+                android:onClick="ExecuteTool"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</android.support.constraint.ConstraintLayout>

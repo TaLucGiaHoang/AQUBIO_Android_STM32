@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".ActivityRegister">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center|top"
+        android:orientation="vertical"
+        android:background="@color/background">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:gravity="center|top"
+            android:text="@string/strTitleFirmware"
+            android:textColor="@color/textWhite"
+            android:textStyle="bold"
+            android:textSize="18sp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="25dp"
+                android:text="@string/strSSID"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"/>
+
+            <EditText
+                android:id="@+id/txt_SSID"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/edittex_border"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:paddingLeft="5dp"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginTop="15dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="25dp"
+                android:text="@string/strLogin_Pass"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"/>
+
+            <EditText
+                android:id="@+id/txt_SSID_Pass"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:inputType="textPassword"
+                android:background="@drawable/edittex_border"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:paddingLeft="5dp"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginTop="30dp"
+            android:weightSum="3">
+
+            <Button
+                android:id="@+id/btn_ReadFile"
+                android:background="@drawable/custom_button_read_file"
+                android:layout_width="1dp"
+                android:layout_height="55dp"
+                android:layout_weight="2"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:text="@string/strButtonReadFile"
+                android:onClick="ReadFile"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginLeft="30dp"
+            android:layout_marginRight="30dp"
+            android:layout_marginTop="30dp"
+            android:gravity="right">
+
+            <Button
+                android:id="@+id/btn_Skip"
+                android:background="@drawable/custom_button_orange"
+                android:layout_width="wrap_content"
+                android:layout_height="55dp"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:text="@string/strButtonBack"
+                android:onClick="BackHome"/>
+
+            <Button
+                android:id="@+id/btn_Set"
+                android:background="@drawable/custom_button_gray"
+                android:layout_marginLeft="15dp"
+                android:layout_width="wrap_content"
+                android:layout_height="55dp"
+                android:textColor="@color/textWhite"
+                android:textStyle="bold"
+                android:text="@string/strButtonSet"
+                android:enabled="false"
+                android:onClick="OnSet"/>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</android.support.constraint.ConstraintLayout>

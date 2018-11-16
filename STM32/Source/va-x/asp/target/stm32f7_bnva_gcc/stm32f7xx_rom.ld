@@ -1,6 +1,6 @@
 MEMORY
 {
-	ROM1 (rx) : ORIGIN = 0x08000000, LENGTH = 256K
+    ROM1 (rx) : ORIGIN = 0x08000000, LENGTH = 256K
     ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 768K
     RAM1 (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
     RAM2 (rwx) : ORIGIN = 0x20020000, LENGTH = 368K
@@ -16,7 +16,7 @@ STARTUP(start.o)
 
 SECTIONS
 {
-    .startup :
+/*    .startup :
     {
     } > ROM2
     .program :
@@ -24,6 +24,7 @@ SECTIONS
         . = ALIGN(4);
         *apl*(.text*)
     } > ROM2
+*/
 
     .text :
     {

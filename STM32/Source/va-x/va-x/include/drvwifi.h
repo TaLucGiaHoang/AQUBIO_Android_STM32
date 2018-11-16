@@ -1,4 +1,4 @@
-/*
+﻿/*
  * VA-X Wifiドライバ (SX-ULPGN)
  *
  * Copyright (C) 2018 Bionics co.,ltd.
@@ -25,7 +25,7 @@
 #define DRVWIFI_MAX_PASSPHRASE_LEN	64	// パスフレーズ最大長
 #define DRVWIFI_MAX_HOSTNAME_LEN	32	// ホスト名最大長
 #define DRVWIFI_MAX_PATH_LEN		32	// パス最大長
-#define DRVWIFI_MAX_IP_ADDRESS_LEN  16
+#define DRVWIFI_MAX_IP_ADDRESS_LEN	16
 
 /* メモリプールブロック長(内部用) */
 #define DRVWIFI_MPFBLK_SIZE		12
@@ -140,7 +140,7 @@ void drvwifi_software_reset();
 void drvwifi_ap_scan(DRVWIFI_AP_INFO* ap, size_t num_ap);
 
 /* APに接続 */
-void drvwifi_ap_connect(const uint8_t* essid, size_t essid_len, const uint8_t* pass, size_t pass_len);
+void drvwifi_ap_connect(const uint8_t* essid, const uint8_t* pass);
 
 /* WPSでAPに接続 */
 void drvwifi_ap_connect_wps();

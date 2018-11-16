@@ -1,4 +1,4 @@
-/************************************************************************/
+﻿/************************************************************************/
 /* Internal Flash Driver                                                */
 /* File name  : drviflx.h                                               */
 /* DATE       : Jan 03, 2018                                            */
@@ -441,13 +441,10 @@ int drviflx_protect(intptr_t addr, size_t length, bool_t protect, DRVIFLX_CALLBA
     size_t sector_size;
     intptr_t start_address, end_address;
 
-    DBGLOG0("drviflx_protect");
     if (s_status > 0) {
         return DRVIFLX_RES_NG;
     }
     s_status |= DRVIFLX_PROTECTING;
-
-    DBGLOG0("drviflx_protect1");
 
     start_address = addr;
     end_address = addr + length - 1;
@@ -458,22 +455,16 @@ int drviflx_protect(intptr_t addr, size_t length, bool_t protect, DRVIFLX_CALLBA
         return DRVIFLX_RES_NG;
     }
 
-    DBGLOG0("drviflx_protect2");
-
     /* Get the last sector to erase */
     if (get_sector(end_address, &s_protect_last_sector, &sector_size) != DRVIFLX_RES_OK) {
         s_status &= ~DRVIFLX_ERASING;
         return DRVIFLX_RES_NG;
     }
 
-    DBGLOG0("drviflx_protect3");
-
     s_protect_enable = protect;
 
     // Set callback
     s_protect_callback = callback;
-
-    DBGLOG0("s_protect_callback set");
 
     s_protect_start = true;
     return DRVIFLX_RES_OK;
@@ -628,11 +619,10 @@ static int get_sector(intptr_t address, size_t* sector, size_t* sector_size)
 {
     int i;
     int num_of_sector;
-    DBGLOG2("get_sector: %d, %d", address, ADDR_FLASH_SECTOR_END);
+
     if (address > ADDR_FLASH_SECTOR_END) {
         return DRVIFLX_RES_NG;
     }
-    DBGLOG0("get_sector1");
 
     num_of_sector = sizeof(DRVIFLX_ADDR_FLASH_SECTOR) / sizeof(DRVIFLX_ADDR_FLASH_SECTOR[0]);
     for (i = 1; i < num_of_sector; i++) {
@@ -668,7 +658,6 @@ static int get_sector(intptr_t address, size_t* sector, size_t* sector_size)
  *""FUNC COMMENT END""*****************************************************/
 void drviflx_task(intptr_t exinf)
 {
-    syslog(LOG_NOTICE, "drviflx_task init");
     int ret;
     FLASH_OBProgramInitTypeDef OBInit;
     int i;

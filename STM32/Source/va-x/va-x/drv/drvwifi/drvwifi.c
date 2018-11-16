@@ -191,6 +191,7 @@ static struct {
 
 static DRVWIFI_CONFIG s_wifi_config;
 static DRVWIFI_TCP_CONFIG s_tcp_config;
+static char* s_ip_address = NULL;
 
 /*********************************************************************
  * 公開関数
@@ -230,12 +231,10 @@ void drvwifi_initialize(DRVWIFI_CALLBACK_T callback)
     mpf_send(DTQ_DRVWIFI, MSG_INITIALIZE, (intptr_t)callback, 0);
 }
 
-void drvwifi_ap_connect(const uint8_t* essid, size_t essid_len, const uint8_t* pass, size_t pass_len)
+void drvwifi_ap_connect(const uint8_t* essid, const uint8_t* pass)
 {
     strcpy((char*)s_wifi_config.essid, (char*)essid);
-    s_wifi_config.essid_len = essid_len;
     strcpy((char*)s_wifi_config.passphrase, (char*)pass);
-    s_wifi_config.passphrase_len = pass_len;
 
     mpf_send(DTQ_DRVWIFI, MSG_AP_CONNECT, (intptr_t)&s_wifi_config, 0);
 }
@@ -415,11 +414,12 @@ void process_msg_initialize(DRVWIFI_CALLBACK_T callback)
 }
 
 #if 1
-void wifi_get_ip_address()
+char* wifi_get_ip_address()
 {
     DBGLOG1("SEND: \"%s\"", ATCMD_QUERY_IP4_SETTING);
     uart_send_at((const uint8_t*) ATCMD_QUERY_IP4_SETTING, sizeof(ATCMD_QUERY_IP4_SETTING) - 1, false);
     wifi_get_result();
+    return s_ip_address;
 }
 #endif
 
@@ -447,16 +447,21 @@ void wifi_ap_connect(const uint8_t* essid, const uint8_t* passphrase)
     result = wifi_get_result();
 
     // Wait for getting IP Address from DHCP
-    dly_tsk(10000);
+    dly_tsk(3000);
 
     // Check IP address
+    char* ip_addr = NULL;
     for (int i = 0; i < 10; i++) {
-        wifi_get_ip_address();
+        ip_addr = wifi_get_ip_address();
+        if (ip_addr != NULL) {
+            DBGLOG1("IP: \"%s\"", ip_addr);
+            break;
+        }
         dly_tsk(1000);
     }
 
-    if (s_callback && result == DRVWIFI_RESULT_OK) {
-        s_callback(DRVWIFI_EVT_AP_CONNECT_COMPLETE, 0, 0);
+    if (s_callback) {
+        s_callback(DRVWIFI_EVT_AP_CONNECT_COMPLETE, ip_addr, 0);
     }
 }
 
@@ -530,14 +535,15 @@ void wifi_tcp_server(const uint16_t port)
 
 int wifi_get_result()
 {
-    // TODO find the last output (CONNECT/ERROR/etc)
+    // Parse AT response to get the result
     int count;
     do {
         count = uart_receive_1line(s_context.receive_buf, RECEIVE_BUF_SIZE);
-
-        // DEBUG
-        char* tmp = strdup(s_context.receive_buf);
+#if DEBUG
+        char* tmp = strdup((char*)s_context.receive_buf);
+        if (count >= 2) tmp[count - 2] = 0;
         DBGLOG2("Rcv (%d): %s", count, tmp);
+#endif
 
         if (memcmp(s_context.receive_buf, "OK", 2) == 0) {
             DBGLOG0("DRVWIFI_RESULT_OK");
@@ -554,6 +560,13 @@ int wifi_get_result()
         } else if (memcmp(s_context.receive_buf, "CONNECT", 7) == 0) {
             DBGLOG0("DRVWIFI_RESULT_CONNECT");
             return DRVWIFI_RESULT_CONNECT;
+        } else if (memcmp(s_context.receive_buf, "IP:0.0.0.0", 10) == 0) {
+
+        } else if (memcmp(s_context.receive_buf, "IP:", 3) == 0) {
+            char* c = (char*)s_context.receive_buf;
+            while (*++c != ',') {}
+            *c = 0;
+            s_ip_address = strdup((char*)&s_context.receive_buf[3]);
         }
     } while (count > 0);
 
@@ -673,11 +686,12 @@ int uart_receive(size_t* count, uint8_t* data, size_t data_len, TMO timeout)
     // 送信完了を待つ
     FLGPTN flgptn = 0;
     er = twai_flg(FLG_DRVWIFI, FLGPTN_UART_RXCOMPLETE, TWF_ORW, &flgptn, timeout);
+    *count = drvcmn_uart_cancel_receive(WIFI_UART);
     assert(er == E_OK);
 
     if (er == E_TMOUT) {
         error = DRVWIFI_ERROR_TIMEOUT;
-        *count = drvcmn_uart_cancel_receive(WIFI_UART);
+//        *count = drvcmn_uart_cancel_receive(WIFI_UART);
     }
 
     return error;

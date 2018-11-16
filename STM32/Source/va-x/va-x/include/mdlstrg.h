@@ -1,4 +1,4 @@
-/*
+﻿/*
  * VA-X 保存データ管理ミドル
  *
  * Copyright (C) 2018 Bionics co.,ltd.
@@ -25,6 +25,9 @@ enum {
     MDLSTRG_DATA_TYPE_BLE_APPKEY,	// BLEアプリ鍵
     MDLSTRG_DATA_TYPE_DEVICE_ID,	// 機器識別情報
     MDLSTRG_DATA_TYPE_NUM,			// 末尾
+    //////////////
+    MDLSTRG_DATA_TYPE_STORE_PROGRAM, // Store program
+    //////////////
 };
 
 enum {
@@ -62,6 +65,12 @@ typedef struct {
     intptr_t opt1;
     intptr_t opt2;
 } MDLSTRG_REQUEST_T;
+
+// Store Program struct
+//#define MDLSTRG_STORE_PROGRAM_SIZE 4000
+//typedef struct {
+//    uint8_t data[MDLSTRG_STORE_PROGRAM_SIZE];
+//} MDLSTRG_STORE_PROGRAM_T;
 
 /* コールバック関数型 */
 typedef void (*MDLSTRG_CALLBACK_T)(int event, intptr_t opt1, intptr_t opt2);

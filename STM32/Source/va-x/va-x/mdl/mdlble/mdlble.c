@@ -24,6 +24,18 @@
 
 #define MDLBLE_ALWAYS_FACTORY_RESET
 
+#if 1
+#define DBGLOG0(msg)					syslog(LOG_NOTICE, "[MDLBLE]" msg)
+#define DBGLOG1(msg, arg1)				syslog(LOG_NOTICE, "[MDLBLE]" msg, arg1)
+#define DBGLOG2(msg, arg1, arg2)		syslog(LOG_NOTICE, "[MDLBLE]" msg, arg1, arg2)
+#define DBGLOG3(msg, arg1, arg2, arg3)	syslog(LOG_NOTICE, "[MDLBLE]" msg, arg1, arg2, arg3)
+#else
+#define DBGLOG0(msg)
+#define DBGLOG1(msg, arg1)
+#define DBGLOG2(msg, arg1, arg2)
+#define DBGLOG3(msg, arg1, arg2, arg3)
+#endif
+
 // サービスコールのエラーのログ出力
 static inline void svc_perror(const char *file, int_t line, const char *expr, ER ercd)
 {

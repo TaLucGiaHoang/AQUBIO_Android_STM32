@@ -9,7 +9,7 @@
 #define VA_X_INCLUDE_STM32F765XX_H_
 
 #define FLASH_SECTOR_TOTAL  24 // FLASH Total Sectors Number
-#define DUAL_BANK
+//#define DUAL_BANK
 
 // Additional definitions for STM32F765
 #define FLASH_OPTCR_nWRP_8            0x01000000U

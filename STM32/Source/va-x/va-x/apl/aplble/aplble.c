@@ -45,13 +45,11 @@
 
 #define TEST_USE_DUMMY_CARD_DATA
 
-// DEBUG
-//#define SERVER_IP "192.168.1.27"
 #define SERVER_IP "192.168.43.1"
 #define SERVER_PORT 5000
 #define MAX_TRY 5 // Try to connect to TCP server 5 times
 
-#define RECEIVE_BUFFER_SIZE 1024
+#define RECEIVE_BUFFER_SIZE 4096
 
 /*
  * 型
@@ -81,7 +79,7 @@ static const FLGPTN FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE  = (0x1 << 7);
 static const FLGPTN FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE = (0x1 << 8);
 static const FLGPTN FLGPTN_DRVWIFI_TCP_SEND_COMPLETE    = (0x1 << 9);
 static const FLGPTN FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE = (0x1 << 10);
-static const FLGPTN FLGPTN_DRVWIFI_TCP_SERVER_COMPLETE = (0x1 << 11);
+static const FLGPTN FLGPTN_DRVWIFI_TCP_SERVER_COMPLETE  = (0x1 << 11);
 
 static const uint8_t const BLE_PIN[] = {0x31, 0x32, 0x33, 0x34};
 
@@ -110,11 +108,11 @@ static const uint8_t const TEST_KEY_PUB[] = {
 #ifdef TEST_USE_DUMMY_CARD_DATA
 typedef struct {
     uint8_t		slotno;			// 登録スロット
-	uint8_t		namelen;		// 登録名バイト長
-	uint8_t		padding0;
-	uint8_t		padding1;
-	uint32_t	name[32];		// 登録名
-	uint8_t		card_id[16];	// カードに印字されている番号(サービスコード300Bの情報)
+    uint8_t		namelen;		// 登録名バイト長
+    uint8_t		padding0;
+    uint8_t		padding1;
+    uint32_t	name[32];		// 登録名
+    uint8_t		card_id[16];	// カードに印字されている番号(サービスコード300Bの情報)
 } TEST_CARD_DATA_T;
 #define TEST_CARD_DATA_NUM 2
 static const TEST_CARD_DATA_T const TEST_CARD_DATA[TEST_CARD_DATA_NUM] = {
@@ -176,6 +174,8 @@ static void mdlble_callback(int event, intptr_t opt1, intptr_t opt2);
 static void aplble_authenticate(const MDLBLE_DATA_T* data);
 static void aplble_set_phone_wifi(const MDLBLE_DATA_T* data);
 static void aplble_update_firmware(const MDLBLE_DATA_T* data);
+static void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, int index);
+static void mdlstrg_store_program_delete(size_t size, int index);
 
 #if 0
 static void aplble_process_data_1(const MDLBLE_DATA_T* data);
@@ -322,6 +322,12 @@ void aplble_task(intptr_t exinf)
     er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_START_COMPLETE, TWF_ANDW, &flgptn, 2000);
     assert(er == E_OK);
 
+    // Wifi
+    clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_INITIALIZE_COMPLETE);
+    drvwifi_initialize(drvwifi_callback);
+    er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_INITIALIZE_COMPLETE, TWF_ANDW, &flgptn, 2000);
+    assert(er == E_OK);
+
     while (true) {
         APLEVT_EVENT_T* event = NULL;
         ER er_rcv = aplevt_receive_event(DTQ_APLBLE, &event, TMO_FEVR);
@@ -374,7 +380,7 @@ void aplble_task(intptr_t exinf)
  */
 void aplble_rx_task(intptr_t exinf)
 {
-	DBGLOG1("aplble_rx_task() starts (exinf = %d).", (int_t) exinf);
+    DBGLOG1("aplble_rx_task() starts (exinf = %d).", (int_t) exinf);
 
     while (true) {
         MDLBLE_DATA_T* data = NULL;
@@ -493,7 +499,6 @@ void aplble_set_phone_wifi(const MDLBLE_DATA_T* data)
     memcpy(s_ssid, &data->body[0], 32);
     memcpy(s_password, &data->body[32], 32);
     DBGLOG2("SSID: %s, password: %s", s_ssid, s_password);
-    dly_tsk(1000);
     clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
     mdlble_send(data->command, (uint8_t*)"OK", 2);
     FLGPTN flgptn = 0;
@@ -503,37 +508,22 @@ void aplble_set_phone_wifi(const MDLBLE_DATA_T* data)
 
 void aplble_update_firmware(const MDLBLE_DATA_T* data)
 {
-    //DEBUG
-//    strcpy(s_ssid, "SHCVN02");
-//    strcpy(s_password, "khongduoc");
-
     DBGLOG0("aplble_update_firmware");
     FLGPTN flgptn = 0;
     ER er = E_OK;
 
     uint32_t firmware_size = 0;
-    uint32_t remain = 0;
     int ret = 0;
     if (s_ssid[0] == 0) {
         ret = 0;
+        DBGLOG0("Wifi SSID has not been configured");
     } else {
-        //DEBUG
         ret = 1;
-
-        // Initialize WIFI
-        DBGLOG0("Init DRVWIFI");
-        clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_INITIALIZE_COMPLETE);
-        drvwifi_initialize(drvwifi_callback);
-        er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_INITIALIZE_COMPLETE, TWF_ANDW, &flgptn, 30000);
-        assert(er == E_OK);
-        if (er != E_OK) {
-            ret = 0;
-        }
 
         if (ret) {
             DBGLOG0("AP Connect");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE);
-            drvwifi_ap_connect(s_ssid, strlen((char*)s_ssid), s_password, strlen((char*)s_password));
+            drvwifi_ap_connect(s_ssid, s_password);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 30000);
             assert(er == E_OK);
             if (er != E_OK) {
@@ -541,7 +531,6 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
             }
         }
 
-        // TODO check if DHCP works
         if (ret) {
             clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
             mdlble_send(data->command, (uint8_t*) "OK", 2);
@@ -571,7 +560,7 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
             DBGLOG0("TCP send");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_SEND_COMPLETE);
             drvwifi_send((uint8_t*)"OK", 2);
-            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 30000);
+            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
             assert(er == E_OK);
             if (er != E_OK) {
                 ret = 0;
@@ -588,6 +577,9 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
                 ret = 0;
             } else {
                 DBGLOG1("Wifi Recv: %s", s_received_data);
+                drvwifi_send((uint8_t*) "OK", 2);
+                er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
+                assert(er == E_OK);
             }
         }
 
@@ -601,30 +593,49 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
                 ret = 0;
             } else {
                 firmware_size = (s_received_data[0] << 24) | (s_received_data[1] << 16) | (s_received_data[2] << 8) | (s_received_data[3]);
-                DBGLOG2("Firmware size: %d, %08x", firmware_size, firmware_size);
+                assert(firmware_size < 0x000C0000);
+                if (firmware_size >= 0x000C0000) {
+                    ret = 0;
+                    DBGLOG2("Firmware size ERROR: %d, %08x", firmware_size, firmware_size);
+                } else {
+                    DBGLOG2("Firmware size: %d, %08x", firmware_size, firmware_size);
+                    drvwifi_send((uint8_t*) "OK", 2);
+                    er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
+                    assert(er == E_OK);
+                }
             }
         }
 
-        remain = firmware_size;
-        while (remain > 0) {
-            DBGLOG0("TCP Receive");
-            clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
+        if (ret) {
+            // Erase flash
+            mdlstrg_store_program_delete(firmware_size, 0);
+
+            uint32_t start_address = 0;
             uint32_t receive_length;
-            if (remain < RECEIVE_BUFFER_SIZE) {
-                receive_length = remain;
-            } else {
-                receive_length = RECEIVE_BUFFER_SIZE;
+            while (start_address < firmware_size) {
+                receive_length = firmware_size - start_address;
+                if (receive_length > RECEIVE_BUFFER_SIZE) {
+                    receive_length = RECEIVE_BUFFER_SIZE;
+                }
+                clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
+                drvwifi_receive(s_received_data, receive_length);
+                er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, TMO_FEVR);
+                assert(er == E_OK);
+                if (er != E_OK) {
+                    ret = 0;
+                } else {
+                    DBGLOG1("TCP Receive: (%d)", receive_length);
+                    // Write receive buffer to QSPI flash
+                    mdlstrg_store_program_write(s_received_data, start_address, receive_length, 0);
+                    start_address += receive_length;
+
+                    drvwifi_send((uint8_t*) "OK", 2);
+                    er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
+                    assert(er == E_OK);
+                }
             }
-            drvwifi_receive(s_received_data, receive_length);
-            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, TMO_FEVR);
-            assert(er == E_OK);
-            if (er != E_OK) {
-                ret = 0;
-            } else {
-                DBGLOG1("Firmware Receive (%d)", receive_length);
-                remain -= receive_length;
-                // TODO Write receive buffer to QSPI flash
-            }
+
+            DBGLOG1("Firmware Received: (%d)", firmware_size);
         }
     }
 }
@@ -1229,4 +1240,42 @@ void drvwifi_callback(int32_t evt, int32_t error, intptr_t opt)
         assert(false);
         break;
     }
+}
+
+void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, int index)
+{
+    DBGLOG0("mdlstrg_store_program_write");
+    ER er;
+
+    assert(data);
+
+    MDLSTRG_REQUEST_T UPDATE_REQ = {
+        .data_type = MDLSTRG_DATA_TYPE_STORE_PROGRAM,
+        .request_type = MDLSTRG_REQ_TYPE_WRITE,
+        .data = (intptr_t)data,
+        .size = size,
+        .opt1 = index,
+        .opt2 = address,
+    };
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
+    mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
+    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 10000);
+    assert(er == E_OK);
+}
+
+void mdlstrg_store_program_delete(size_t size, int index)
+{
+    DBGLOG0("mdlstrg_store_program_read");
+    ER er;
+
+    MDLSTRG_REQUEST_T UPDATE_REQ = {
+        .data_type = MDLSTRG_DATA_TYPE_STORE_PROGRAM,
+        .request_type = MDLSTRG_REQ_TYPE_DELETE,
+        .size = size,
+        .opt1 = index,
+    };
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
+    mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
+    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 30000);
+    assert(er == E_OK);
 }

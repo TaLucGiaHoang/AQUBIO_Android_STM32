@@ -1,4 +1,4 @@
-/*
+﻿/*
  * VA-X 保存データ管理ミドル
  *
  * Copyright (C) 2018 Bionics co.,ltd.
@@ -212,6 +212,13 @@ static bool_t read_device_id(BNVA_DEVICE_ID_T* dest);
 // 機器識別情報書込み
 static void write_device_id(const BNVA_DEVICE_ID_T* device_id);
 
+//////////////////////
+// Store Program memory
+static bool_t read_store_program(void* data, intptr_t address, size_t size, int index);
+static void write_store_program(void* data, intptr_t address, size_t size, int index);
+static void delete_store_program(size_t size, int index);
+static bool_t exists_store_program(size_t* size, int index);
+//////////////////////
 
 /*
  * 定数定義
@@ -258,6 +265,9 @@ enum {
     //   認証OK/NGなど
     //   電気錠の開閉回数
     // 
+    ///////////////////////////
+    FLASH_AREA_STORE_PROGRAM,		// Store Program
+    ///////////////////////////
 };
 
 // フラッシュの保存方法
@@ -287,7 +297,11 @@ static const FLASH_AREA_DEF_T FLASH_AREA_DEFS[] = {
     { FLASH_AREA_AUTH_META,			0x00B000,	4096,		20,			STRATEGY_1DATA_1LEB_INDEXED,	0,							0,		},
     { FLASH_AREA_AUTH,				0x01F000,	16384,		20,			STRATEGY_1DATA_1LEB_INDEXED,	0,							0,		},
     { FLASH_AREA_AUTH_LEARNED,		0x06F000,	16384,		20,			STRATEGY_1DATA_1LEB_INDEXED,	0,							0,		},
-    { FLASH_AREA_AUTH_LEARNED_INC,	0x0BF000,	135168,		1,			STRATEGY_INCREMENTAL_FIXED,		sizeof(FLASH_DATA_AUTH_T),	10,		},
+    { FLASH_AREA_AUTH_LEARNED_INC,	0x0BF000,	135168,		1,			STRATEGY_INCREMENTAL_FIXED,		sizeof(FLASH_DATA_AUTH_T) /*13200bytes */,	10,		},
+	//////////////////
+    { FLASH_AREA_STORE_PROGRAM,     0x130000,	720896,		1,			STRATEGY_1DATA_1LEB_INDEXED,	0,                          0,		}, // Store Program
+//  { FLASH_AREA_STORE_PROGRAM,     0x130000,	4096,		176,		STRATEGY_1DATA_1LEB_INDEXED,	0,	                        0,		}, // Store Program
+	//////////////////
     // 次: 0x0E0000
     // 2M: -0x1FFFFF
 };
@@ -499,6 +513,28 @@ void mdlstrg_task(intptr_t exinf)
                 }
                 break;
             }
+            ////////////////////////////////
+            case MDLSTRG_DATA_TYPE_STORE_PROGRAM: {	// Store program
+                switch (blk->request.request_type) {
+                case MDLSTRG_REQ_TYPE_READ:
+                    read_store_program((void*)blk->request.data, blk->request.opt2, blk->request.size, blk->request.opt1);
+                    break;
+                case MDLSTRG_REQ_TYPE_WRITE:
+                    write_store_program((void*)blk->request.data, blk->request.opt2, blk->request.size, blk->request.opt1);
+                    break;
+                case MDLSTRG_REQ_TYPE_DELETE:
+                    delete_store_program(blk->request.size, blk->request.opt1);
+                    break;
+                case MDLSTRG_REQ_TYPE_EXISTS:
+                    opt1 = exists_store_program((size_t*)blk->request.opt2, blk->request.opt1);
+                    break;
+                default:
+                    assert(false);
+                    break;
+                }
+                break;
+            }
+            ////////////////////////////////
             default:
                 assert(false);
                 break;
@@ -1381,3 +1417,106 @@ void write_device_id(const BNVA_DEVICE_ID_T* device_id)
     return;
 }
 
+////////////////////////
+
+/*
+ * Read from Store Program memory
+ */
+bool_t read_store_program(void* data, intptr_t address, size_t size, int index)
+{
+    assert(data);
+    assert(index >= 0 && index < 176);
+	
+    bool_t found = false;
+    intptr_t db_addr = 0;
+    size_t block_size = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Get Store Program address
+    found = db_get_data_addr(&db_addr, &block_size, &cursor, FLASH_AREA_STORE_PROGRAM, index);
+    if (!found) {
+        goto end;
+    }
+
+    // Read Store Program data
+    flash_read(data, db_addr + address, size);
+
+end:
+    return found;
+}
+/*
+ * Write to Store Program memory
+ */
+void write_store_program(void* data, intptr_t address, size_t size, int index)
+{
+    assert(data);
+    assert(index >= 0 && index < 176);
+
+    bool_t found = false;
+    intptr_t db_addr = 0;
+    size_t block_size = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Get write destination
+    found = db_get_data_addr_1d1li(&db_addr, &block_size, &cursor, &(FLASH_AREA_DEFS[FLASH_AREA_STORE_PROGRAM]), index, SEARCH_FOR_WRITE_DEST);
+    assert(found);
+
+    // Write to Store Program to flash
+    flash_write(db_addr + address, data, size);
+}
+
+/*
+ * Delete existing Store Program
+ */
+void delete_store_program(size_t size, int index)
+{
+    bool_t found = false;
+    intptr_t db_addr = 0;
+    size_t block_size = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Get Store Program address
+    found = db_get_data_addr_1d1li(&db_addr, &block_size, &cursor, &(FLASH_AREA_DEFS[FLASH_AREA_STORE_PROGRAM]), index, SEARCH_FOR_WRITE_DEST);
+    //found = db_get_data_addr(&addr, &block_size, &cursor, FLASH_AREA_STORE_PROGRAM, index);
+    if (found) {
+        if (size == 0) {
+            db_set_invalid(&cursor);
+        } else {
+            intptr_t leb_addr = cursor.area_def->addr + (cursor.area_def->leb_size * index);
+            size_t erase_size = size + sizeof(LEB_HEADER_T) + sizeof(DB_HEADER_T);
+            erase_size = (((erase_size - 1) / DRVFLX_ERASE_BLOCK_SIZE) + 1) * DRVFLX_ERASE_BLOCK_SIZE;
+            DBGLOG2("Erasing %08x, size %d", leb_addr, erase_size);
+            flash_erase(leb_addr, erase_size);
+
+            // Write LEB header
+            LEB_HEADER_T leb_header = {0};
+            leb_header.leb_state = BLOCK_STATE_EMPTY;
+            flash_write(leb_addr, &leb_header, sizeof(LEB_HEADER_T));
+
+            // Write DB header
+            DB_HEADER_T header = {0};
+            header.data_id = index;
+            header.data_len = size;
+            header.db_state = BLOCK_STATE_VALID;
+            flash_write(cursor.db_addr, &(header), sizeof(header));
+        }
+    }
+
+    return;
+}
+
+/*
+ * Check existence of Store Program
+ */
+bool_t exists_store_program(size_t* size, int index)
+{
+    bool_t found = false;
+    intptr_t addr = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Check if registered
+    found = db_get_data_addr(&addr, size, &cursor, FLASH_AREA_STORE_PROGRAM, index);
+
+    return found;
+}
+///////////////////////

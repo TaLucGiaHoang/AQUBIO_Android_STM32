@@ -9,19 +9,22 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.app.Activity;
 import android.os.Environment;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -29,8 +32,6 @@ import java.io.FileNotFoundException;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -52,7 +53,7 @@ public class ActivityFrimwareUpdate extends Activity {
     private static final int DIALOG_LOAD_FILE = 1000;
     ListAdapter adapter;
     byte[] fileContent;
-    Button btnSet;
+    Button btnSet,btnBack,btnReadFile;
     TextView txtSSID, txtPassword;
     byte[] dataSIID = new byte[70];
     ProgressDialog progressDialog;
@@ -61,21 +62,58 @@ public class ActivityFrimwareUpdate extends Activity {
     Thread socketServerThread;
     ServerSocket ss;
 
+    Handler mHandler;
+    int indexLanguage;
+    TextView lbVersion,lbPass;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_frimware_update);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
+        setContentView(R.layout.activity_frimware_update);
+        lbVersion = (TextView)findViewById(R.id.lbVersion);
+        lbPass = (TextView)findViewById(R.id.lbPassSSID);
+        btnSet = (Button)findViewById(R.id.btn_Set);
+        btnBack = (Button)findViewById(R.id.btn_Skip) ;
+        btnReadFile = (Button)findViewById(R.id.btn_ReadFile);
+        txtSSID = (TextView)findViewById(R.id.txt_SSID);
+        txtPassword = (TextView)findViewById(R.id.txt_SSID_Pass);
+
+        SharedPreferences prefs = getSharedPreferences("LANGUAGE", MODE_PRIVATE);
+        indexLanguage = prefs.getInt("LANGUAGE_INDEX", 0);
+        SetLanguage(indexLanguage);
 
         path = new File(Environment.getExternalStorageDirectory().getPath());
-        btnSet = (Button)findViewById(R.id.btn_Set);
-        txtSSID = (TextView)findViewById(R.id.txt_SSID);
         txtPassword = (TextView)findViewById(R.id.txt_SSID_Pass);
         progressDialog = new ProgressDialog(this);
         progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
         progressDialog.setCancelable(false);
         registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+        mHandler = new Handler();
+    }
+
+    public  void SetLanguage(int indexLa)
+    {
+        switch (indexLa)
+        {
+            case 0:
+                lbVersion.setText(CHardCode.jp_strTitleFirmware);
+                lbPass.setText(CHardCode.jp_strLogin_Pass);
+                btnSet.setText(CHardCode.jp_strButtonSet);
+                btnReadFile.setText(CHardCode.jp_strButtonReadFile);
+                btnBack.setText(CHardCode.jp_strButtonBack);
+                break;
+            case 1:
+                lbVersion.setText(CHardCode.strTitleFirmware);
+                lbPass.setText(CHardCode.strLogin_Pass);
+                btnSet.setText(CHardCode.strButtonSet);
+                btnReadFile.setText(CHardCode.strButtonReadFile);
+                btnBack.setText(CHardCode.strButtonBack);
+                break;
+        }
     }
 
     @Override
@@ -144,27 +182,23 @@ public class ActivityFrimwareUpdate extends Activity {
 
             if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
                 Log.e("ACTION","ACTION_DATA_AVAILABLE");
+                Log.e("DATA",((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.strData);
+                Log.e("CMD",((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.strCMD);
                 if (!((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.strData.isEmpty() &&
                         ((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.isFinish) {
 
                     if (((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.strData.compareTo("OK") == 0) {
                         ((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.isFinish = false;
                         //Switch to wifi and send flash file
-                        if(step == 0)//send "E" command
+                        if(((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.strCMD.compareTo("12") == 0)//send "E" command
                         {
-                            try {
-                                Thread.sleep(500);
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
-                            }
                             ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.characteristicSet.setValue(CreatePackageE());
                             ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.gattMain.writeCharacteristic(
                                     ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.characteristicSet);
                             ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.gattMain.writeCharacteristic(
                                     ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.characteristicSet);
-                            step = 1;
                         }
-                        else if(step == 1)
+                        else if(((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.strCMD.compareTo("1E") == 0)
                         {
                            //switch to wifi
                             Thread socketServerThread = new Thread(new SendFileFlash());
@@ -179,7 +213,13 @@ public class ActivityFrimwareUpdate extends Activity {
                         ((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.isFinish = false;
 
                     } else if (((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.strData.compareTo("CK") == 0) {
-                        Toast.makeText(getApplication(), "Data received error.", Toast.LENGTH_LONG).show();
+                        if(indexLanguage == 0)
+                        {
+                            Toast.makeText(getApplication(), CHardCode.jp_strErrData, Toast.LENGTH_LONG).show();
+                        }
+                        else {
+                            Toast.makeText(getApplication(), CHardCode.strErrData, Toast.LENGTH_LONG).show();
+                        }
                         ((MyApplication) ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.isFinish = false;
                         // wrong data
                         if(progressDialog.isShowing()) {
@@ -200,9 +240,38 @@ public class ActivityFrimwareUpdate extends Activity {
 
     public  void OnSet(View v)
     {
-        progressDialog.setTitle(CHardCode.strTitleWaittingSend);
-        progressDialog.setMessage(CHardCode.strWaittingSend);
+        if(indexLanguage == 0)
+        {
+            progressDialog.setTitle(CHardCode.jp_strTitleWaittingSend);
+            progressDialog.setMessage(CHardCode.jp_strWaittingSend);
+        }
+        else {
+            progressDialog.setTitle(CHardCode.strTitleWaittingSend);
+            progressDialog.setMessage(CHardCode.strWaittingSend);
+        }
         progressDialog.show();
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if(progressDialog.isShowing())
+                {
+                    progressDialog.cancel();
+                    ActivityFrimwareUpdate.this.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(cn, CHardCode.jp_strErrDownloading, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(cn, CHardCode.strErrDownloading, Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    });
+
+                }
+            }
+        }, CHardCode.TIMEOUT_DOWNLOAD);
         for(int i=0;i<4;i++)
         {
             switch (i)
@@ -245,13 +314,25 @@ public class ActivityFrimwareUpdate extends Activity {
 
     public class SendFileFlash extends Thread
     {
+        Boolean end = false;
         @Override
         public void run() {
             try {
-                Boolean end = false;
                 ss = new ServerSocket(CHardCode.STR_PORT);
                 while (!end) {
                     //Server is waiting for client here, if needed
+                    ActivityFrimwareUpdate.this.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(indexLanguage == 0)
+                            {
+                                progressDialog.setTitle(CHardCode.jp_strTitleDownloading);
+                            }
+                            else {
+                                progressDialog.setTitle(CHardCode.strTitleDownloading);
+                            }
+                        }
+                    });
                     Socket s = ss.accept();
                     DataOutputStream output = new DataOutputStream(s.getOutputStream()); //Autoflush
                     InputStream input = s.getInputStream();
@@ -317,15 +398,57 @@ public class ActivityFrimwareUpdate extends Activity {
                 ActivityFrimwareUpdate.this.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(cn, "Finished.", Toast.LENGTH_LONG).show();
+                        if(indexLanguage == 0)
+                        {
+                            Toast.makeText(cn, CHardCode.jp_strTitleDownloadingFinish, Toast.LENGTH_LONG).show();
+                        }
+                        else {
+                            Toast.makeText(cn, CHardCode.strTitleDownloadingFinish, Toast.LENGTH_LONG).show();
+                        }
                     }
                 });
 
             } catch (UnknownHostException e) {
                 // TODO Auto-generated catch block
+                end = true;
+                if(progressDialog.isShowing())
+                {
+                    progressDialog.cancel();
+                    ActivityFrimwareUpdate.this.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(cn, CHardCode.jp_strErrDownloading, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(cn, CHardCode.strErrDownloading, Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    });
+
+                }
                 e.printStackTrace();
             } catch (IOException e) {
                 // TODO Auto-generated catch block
+                end = true;
+                if(progressDialog.isShowing())
+                {
+                    progressDialog.cancel();
+                    ActivityFrimwareUpdate.this.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(cn, CHardCode.jp_strErrDownloading, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(cn, CHardCode.strErrDownloading, Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    });
+
+                }
                 e.printStackTrace();
             }
         }
@@ -343,10 +466,22 @@ public class ActivityFrimwareUpdate extends Activity {
             switch (resultLogin)
             {
                 case 1:
-                    Toast.makeText(this, CHardCode.strErrID, Toast.LENGTH_LONG).show();
+                    if(indexLanguage == 0)
+                    {
+                        Toast.makeText(this, CHardCode.jp_strErrID, Toast.LENGTH_LONG).show();
+                    }
+                    else {
+                        Toast.makeText(this, CHardCode.strErrID, Toast.LENGTH_LONG).show();
+                    }
                     break;
                 case 2:
-                    Toast.makeText(this, CHardCode.strErrPass, Toast.LENGTH_LONG).show();
+                    if(indexLanguage == 0)
+                    {
+                        Toast.makeText(this, CHardCode.jp_strErrPass, Toast.LENGTH_LONG).show();
+                    }
+                    else {
+                        Toast.makeText(this, CHardCode.strErrPass, Toast.LENGTH_LONG).show();
+                    }
                     break;
             }
         }
@@ -358,6 +493,7 @@ public class ActivityFrimwareUpdate extends Activity {
         {
             ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.disconnect();
         }
+        ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService = null;
         Intent myIntent = new Intent(cn, ActivityLogin.class);
         startActivity(myIntent);
     }
@@ -518,7 +654,13 @@ public class ActivityFrimwareUpdate extends Activity {
 
         switch (id) {
             case DIALOG_LOAD_FILE:
-                builder.setTitle("Choose your file");
+                if(indexLanguage == 0)
+                {
+                    builder.setTitle(CHardCode.jp_strTitleChoseFile);
+                }
+                else {
+                    builder.setTitle(CHardCode.strTitleChoseFile);
+                }
                 builder.setAdapter(adapter, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {

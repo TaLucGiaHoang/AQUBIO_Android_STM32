@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ActivityRegister">
+    tools:context=".ActivityFrimwareUpdate">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,6 +14,7 @@
         android:background="@color/background">
 
         <TextView
+            android:id="@+id/lbVersion"
             android:layout_width="match_parent"
             android:layout_height="80dp"
             android:gravity="center|top"
@@ -30,6 +31,7 @@
             android:layout_marginRight="30dp">
 
             <TextView
+                android:id="@+id/lbSSID"
                 android:layout_width="wrap_content"
                 android:layout_height="25dp"
                 android:text="@string/strSSID"
@@ -56,6 +58,7 @@
             android:layout_marginTop="15dp">
 
             <TextView
+                android:id="@+id/lbPassSSID"
                 android:layout_width="wrap_content"
                 android:layout_height="25dp"
                 android:text="@string/strLogin_Pass"

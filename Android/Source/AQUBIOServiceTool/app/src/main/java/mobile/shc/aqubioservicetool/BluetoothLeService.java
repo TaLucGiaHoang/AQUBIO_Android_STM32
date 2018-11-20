@@ -30,6 +30,7 @@ public class BluetoothLeService extends Service {
     private final static String TAG = BluetoothLeService.class.getSimpleName();
     public String strUUID;
     public volatile String strData="";
+    public volatile String strCMD="";
     public volatile boolean isFinish = false;
     int sizeData = 0;
     boolean isFirst = true;
@@ -155,6 +156,10 @@ public class BluetoothLeService extends Service {
                 }
                 if(checkSum == 0)
                 {
+                    byte[] arrCMD = new byte[2];
+                    arrCMD[0] = buff[2];
+                    arrCMD[1] = buff[3];
+                    strCMD = new String(arrCMD, "UTF-8");
                     byte[] arrData = new byte[lenghtBuff - 6];
                     for(int i=0; i<arrData.length;i++)
                     {

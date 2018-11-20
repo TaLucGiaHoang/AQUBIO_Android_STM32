@@ -13,6 +13,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.os.Build;
@@ -21,8 +22,13 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -42,7 +48,11 @@ public class ActivityLogin extends Activity {
     String strAddress;
     ProgressDialog progressDialog;
     boolean mConnected = false;
-    TextView txtID, txtPass, txtName;
+    EditText txtID, txtPass, txtName;
+    TextView lbID, lbPass, lbName;
+    Button btnExe;
+    Spinner spinner;
+    int indexLanguage;
 
 
     // custom dialog
@@ -53,11 +63,60 @@ public class ActivityLogin extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_login);
         dialog = new Dialog(this);
+
+
+        btnExe = (Button)findViewById(R.id.btn_Execute);
+        txtID = (EditText)findViewById(R.id.txt_loginID);
+        txtPass = (EditText)findViewById(R.id.txt_loginPass);
+        txtName = (EditText)findViewById(R.id.txt_loginName);
+        lbID = (TextView) findViewById(R.id.lbName);
+        lbPass = (TextView)findViewById(R.id.lbLogin);
+        lbName = (TextView)findViewById(R.id.lbPass);
+
+        SharedPreferences prefs = getSharedPreferences("LANGUAGE", MODE_PRIVATE);
+        indexLanguage = prefs.getInt("LANGUAGE_INDEX", 0);
+        spinner = (Spinner) findViewById(R.id.cbLanguage);
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
+                this, R.array.countries_array, android.R.layout.simple_spinner_item);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        if(indexLanguage == 0) {
+            spinner.setSelection(0);
+            SetLanguage(0);
+        }
+        else {
+            spinner.setSelection(1);
+            SetLanguage(1);
+        }
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                SetLanguage(position);
+                SharedPreferences.Editor prefs = getSharedPreferences("LANGUAGE", MODE_PRIVATE).edit();
+                prefs.putInt("LANGUAGE_INDEX",position);
+                prefs.apply();
+                indexLanguage = position;
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
         //check support BLE
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            Toast.makeText(this, CHardCode.strNotSupport, Toast.LENGTH_LONG).show();
+            if(indexLanguage == 0)
+            {
+                Toast.makeText(this, CHardCode.jp_strNotSupport, Toast.LENGTH_LONG).show();
+            }
+            else {
+                Toast.makeText(this, CHardCode.strNotSupport, Toast.LENGTH_LONG).show();
+            }
             isSupport = false;
         } else {
             // Initializes Bluetooth adapter.
@@ -78,10 +137,27 @@ public class ActivityLogin extends Activity {
         }
         lsItemDevices = new ArrayList<BluetoothDevice>();
         mHandler = new Handler();
+    }
 
-        txtID = (TextView)findViewById(R.id.txt_loginID);
-        txtPass = (TextView)findViewById(R.id.txt_loginPass);
-        txtName = (TextView)findViewById(R.id.txt_loginName);
+    public  void SetLanguage(int indexLa)
+    {
+        switch (indexLa)
+        {
+            case 0:
+                spinner.setPrompt("日本語");
+                lbID.setText(CHardCode.jp_strLogin_ID);
+                lbName.setText(CHardCode.jp_strLogin_Name);
+                lbPass.setText(CHardCode.jp_strLogin_Pass);
+                btnExe.setText(CHardCode.jp_strLogin_Execute);
+                break;
+            case 1:
+                spinner.setPrompt("English");
+                lbID.setText(CHardCode.strLogin_ID);
+                lbName.setText(CHardCode.strLogin_Name);
+                lbPass.setText(CHardCode.strLogin_Pass);
+                btnExe.setText(CHardCode.strLogin_Execute);
+                break;
+        }
     }
 
     @Override
@@ -145,7 +221,13 @@ public class ActivityLogin extends Activity {
 
                     // permission denied, boo! Disable the
                     // functionality that depends on this permission.
-                    Toast.makeText(this,"Permission denied.",Toast.LENGTH_LONG).show();
+                    if(indexLanguage == 0)
+                    {
+                        Toast.makeText(this,CHardCode.jp_strErrPermisson,Toast.LENGTH_LONG).show();
+                    }
+                    else {
+                        Toast.makeText(this,CHardCode.strErrPermisson,Toast.LENGTH_LONG).show();
+                    }
                 }
                 return;
             }
@@ -176,36 +258,71 @@ public class ActivityLogin extends Activity {
         try {
             if (isSupport) {
                 int resultLogin = CheckInfoLogin(txtID.getText().toString(),txtPass.getText().toString(),txtName.getText().toString());
-                if(resultLogin != 0) {//hienvd
+                if(resultLogin == 0) {
                     lsItemDevices.clear();
                     scanLeDevice(true);
                     progressDialog = new ProgressDialog(this);
                     progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
                     progressDialog.setCancelable(false);
-                    progressDialog.setTitle(CHardCode.strTitleWaitting);
+                    if(indexLanguage == 0)
+                    {
+                        progressDialog.setTitle(CHardCode.jp_strTitleWaitting);
+                    }
+                    else {
+                        progressDialog.setTitle(CHardCode.strTitleWaitting);
+                    }
 
                     Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
                     bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
-
-                    progressDialog.setMessage(CHardCode.strWaitting);
+                    if(indexLanguage == 0)
+                    {
+                        progressDialog.setMessage(CHardCode.jp_strWaitting);
+                    }
+                    else {
+                        progressDialog.setMessage(CHardCode.strWaitting);
+                    }
                     progressDialog.show();
                 }
                 else{
                     switch (resultLogin)
                     {
                         case 1:
-                            Toast.makeText(this, CHardCode.strErrID, Toast.LENGTH_LONG).show();
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(this, CHardCode.jp_strErrID, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(this, CHardCode.strErrID, Toast.LENGTH_LONG).show();
+                            }
                             break;
                         case 2:
-                            Toast.makeText(this, CHardCode.strErrPass, Toast.LENGTH_LONG).show();
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(this, CHardCode.jp_strErrPass, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(this, CHardCode.strErrPass, Toast.LENGTH_LONG).show();
+                            }
                             break;
                         case 3:
-                            Toast.makeText(this, CHardCode.strErrName, Toast.LENGTH_LONG).show();
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(this, CHardCode.jp_strErrName, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(this, CHardCode.strErrName, Toast.LENGTH_LONG).show();
+                            }
                             break;
                     }
                 }
             } else {
-                Toast.makeText(this, CHardCode.strNotSupport, Toast.LENGTH_LONG).show();
+                if(indexLanguage == 0)
+                {
+                    Toast.makeText(this, CHardCode.jp_strNotSupport, Toast.LENGTH_LONG).show();
+                }
+                else {
+                    Toast.makeText(this, CHardCode.strNotSupport, Toast.LENGTH_LONG).show();
+                }
             }
         }catch (Exception ex)
         {
@@ -237,7 +354,13 @@ public class ActivityLogin extends Activity {
                         if(strAddress == "" || strAddress == null){
                             if(progressDialog.isShowing())
                                 progressDialog.dismiss();
-                            Toast.makeText(cn,CHardCode.strTimeout,Toast.LENGTH_LONG).show();
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(cn,CHardCode.jp_strTimeout,Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(cn,CHardCode.strTimeout,Toast.LENGTH_LONG).show();
+                            }
                         }
                     }
                 }, CHardCode.SCAN_PERIOD);
@@ -250,7 +373,13 @@ public class ActivityLogin extends Activity {
                 if(strAddress == "" || strAddress == null){
                     if(progressDialog.isShowing())
                         progressDialog.dismiss();
-                    Toast.makeText(cn,CHardCode.strTimeout,Toast.LENGTH_LONG).show();
+                    if(indexLanguage == 0)
+                    {
+                        Toast.makeText(cn,CHardCode.jp_strTimeout,Toast.LENGTH_LONG).show();
+                    }
+                    else {
+                        Toast.makeText(cn,CHardCode.strTimeout,Toast.LENGTH_LONG).show();
+                    }
                 }
                 else{
                     if (((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService != null) {
@@ -282,6 +411,9 @@ public class ActivityLogin extends Activity {
                                     //((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.connect(strAddress);
                                     mScanning = false;
                                     mBluetoothAdapter.stopLeScan(mLeScanCallback);
+                                    if(((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService != null) {
+                                        ((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.connect(strAddress);
+                                    }
                                     return;
                                 }
                             }
@@ -318,7 +450,7 @@ public class ActivityLogin extends Activity {
         public void onServiceConnected(ComponentName componentName, IBinder service) {
             ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
             if (!((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService.initialize()) {
-                Log.e(TAG, "Unable to initialize Bluetooth");
+                Log.e("initialize", "Unable to initialize Bluetooth");
                 finish();
             }
             // Automatically connects to the device upon successful start-up initialization.
@@ -391,6 +523,15 @@ public class ActivityLogin extends Activity {
                 }
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
                 Log.e("CONNECT", "ACTION_GATT_DISCONNECTED");
+                if(progressDialog.isShowing())
+                    progressDialog.dismiss();
+                if(indexLanguage == 0)
+                {
+                    Toast.makeText(cn,CHardCode.jp_strTimeout,Toast.LENGTH_LONG).show();
+                }
+                else {
+                    Toast.makeText(cn,CHardCode.strTimeout,Toast.LENGTH_LONG).show();
+                }
                 mConnected = false;
 
             } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
@@ -412,14 +553,32 @@ public class ActivityLogin extends Activity {
 
                     } else if (((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.strData.compareTo("NG") == 0) {
                         if (!isVerify) {
-                            Toast.makeText(getApplication(), "Invalid PIN code", Toast.LENGTH_LONG).show();
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(getApplication(), CHardCode.jp_strErrPinCode, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(getApplication(), CHardCode.strErrPinCode, Toast.LENGTH_LONG).show();
+                            }
                         } else {
-                            Toast.makeText(getApplication(), "Your request is not success", Toast.LENGTH_LONG).show();
+                            if(indexLanguage == 0)
+                            {
+                                Toast.makeText(getApplication(), CHardCode.jp_strErrRequest, Toast.LENGTH_LONG).show();
+                            }
+                            else {
+                                Toast.makeText(getApplication(), CHardCode.strErrRequest, Toast.LENGTH_LONG).show();
+                            }
                         }
                         ((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.isFinish = false;
                         progressDialog.dismiss();
                     } else if (((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.strData.compareTo("CK") == 0) {
-                        Toast.makeText(getApplication(), "Data received error.", Toast.LENGTH_LONG).show();
+                        if(indexLanguage == 0)
+                        {
+                            Toast.makeText(getApplication(), CHardCode.jp_strErrData, Toast.LENGTH_LONG).show();
+                        }
+                        else {
+                            Toast.makeText(getApplication(), CHardCode.strErrData, Toast.LENGTH_LONG).show();
+                        }
                         ((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.isFinish = false;
                         progressDialog.dismiss();
                     } else {
@@ -454,7 +613,13 @@ public class ActivityLogin extends Activity {
         //dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(R.layout.msg_input_pin);
         dialog.setCancelable(false);
-        dialog.setTitle("Verify with device");
+        if(indexLanguage == 0)
+        {
+            dialog.setTitle(CHardCode.jp_strTitleVerify);
+        }
+        else {
+            dialog.setTitle(CHardCode.strTitleVerify);
+        }
         // set the custom dialog components - text, image and button
         final EditText txtPin = (EditText) dialog.findViewById(R.id.msg_pin);
 
@@ -463,14 +628,33 @@ public class ActivityLogin extends Activity {
             @Override
             public void onClick(View v) {
                 if(txtPin.getText().toString().isEmpty()){
-                    txtPin.setError(CHardCode.strErrNull);
+                    if(indexLanguage == 0)
+                    {
+                        txtPin.setError(CHardCode.jp_strErrNull);
+                    }
+                    else {
+                        txtPin.setError(CHardCode.strErrNull);
+                    }
                 }
                 else if (txtPin.getText().toString().length() <4) {
-                    txtPin.setError(CHardCode.strErrLength);
+                    if(indexLanguage == 0)
+                    {
+                        txtPin.setError(CHardCode.jp_strErrLength);
+                    }
+                    else {
+                        txtPin.setError(CHardCode.strErrLength);
+                    }
                 }
                 else{
-                    progressDialog.setTitle(CHardCode.strTitleWaittingSend);
-                    progressDialog.setMessage(CHardCode.strWaittingSend);
+                    if(indexLanguage == 0)
+                    {
+                        progressDialog.setTitle(CHardCode.jp_strTitleWaittingSend);
+                        progressDialog.setMessage(CHardCode.jp_strWaittingSend);
+                    }
+                    else {
+                        progressDialog.setTitle(CHardCode.strTitleWaittingSend);
+                        progressDialog.setMessage(CHardCode.strWaittingSend);
+                    }
                     progressDialog.show();
                     ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService.characteristicSet.setValue(CreatePackagePIN(txtPin.getText().toString()));
                     ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService.gattMain.writeCharacteristic(

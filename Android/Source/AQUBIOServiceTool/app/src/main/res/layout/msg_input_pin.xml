@@ -25,8 +25,7 @@
         android:textColor="#000"
         android:gravity="center"
         android:maxLength="4"
-        android:numeric="integer"
-        android:hint="Please input PIN code"/>
+        android:numeric="integer"/>
 
     <LinearLayout 
         android:layout_width="match_parent"

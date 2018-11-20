@@ -33,7 +33,8 @@
         </activity>
         <activity
             android:name=".ActivityFrimwareUpdate"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"
+            android:noHistory="true">
         </activity>
         <service android:name="mobile.shc.aqubioservicetool.BluetoothLeService" android:enabled="true"/>
     </application>

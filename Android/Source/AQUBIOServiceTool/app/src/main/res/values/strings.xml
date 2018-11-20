@@ -1,12 +1,6 @@
 <resources>
     <string name="app_name">AQUBIO Service Tool</string>
 
-    <!-- Login view -->
-    <string name="strLogin_ID">Login ID</string>
-    <string name="strLogin_Pass">Password</string>
-    <string name="strLogin_Name">Name</string>
-    <string name="strLogin_Execute">Execute</string>
-
     <!-- ID Maintenance view -->
     <string name="strTitleMaintenance">Register Maintenance ID</string>
     <string name="strIDMaintenance_Skip">Skip</string>
@@ -19,6 +13,14 @@
     <string name="strBLEMainOn">On</string>
     <string name="strBTNMainFirmware">Firmware update</string>
 
+
+
+    <!-- Login view -->
+    <string name="strLogin_ID">Login ID</string>
+    <string name="strLogin_Pass">Password</string>
+    <string name="strLogin_Name">Name</string>
+    <string name="strLogin_Execute">Execute</string>
+
     <!-- File view -->
     <string name="strTitleFirmware">Version up</string>
     <string name="strSSID">SSID</string>
@@ -26,5 +28,10 @@
     <string name="strButtonBack">Back</string>
     <string name="strButtonSet">Set</string>
     <string name="title_activity_frimware_update">ActivityFrimwareUpdate</string>
+
+    <string-array name="countries_array">
+        <item>日本語</item>
+        <item>English</item>
+    </string-array>
 
 </resources>

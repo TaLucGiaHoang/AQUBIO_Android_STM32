@@ -28,11 +28,11 @@
  */
 
 // デバッグログ
-#if 0
-#define DBGLOG0(msg)					syslog(LOG_NOTICE, "[DRVFLX]" msg)
-#define DBGLOG1(msg, arg1)				syslog(LOG_NOTICE, "[DRVFLX]" msg, arg1)
-#define DBGLOG2(msg, arg1, arg2)		syslog(LOG_NOTICE, "[DRVFLX]" msg, arg1, arg2)
-#define DBGLOG3(msg, arg1, arg2, arg3)	syslog(LOG_NOTICE, "[DRVFLX]" msg, arg1, arg2, arg3)
+#if 1
+#define DBGLOG0(msg)					syslog(LOG_NOTICE, "[DRVQFLX]" msg)
+#define DBGLOG1(msg, arg1)				syslog(LOG_NOTICE, "[DRVQFLX]" msg, arg1)
+#define DBGLOG2(msg, arg1, arg2)		syslog(LOG_NOTICE, "[DRVQFLX]" msg, arg1, arg2)
+#define DBGLOG3(msg, arg1, arg2, arg3)	syslog(LOG_NOTICE, "[DRVQFLX]" msg, arg1, arg2, arg3)
 #else
 #define DBGLOG0(msg)
 #define DBGLOG1(msg, arg1)
@@ -53,7 +53,7 @@ static inline void svc_perror(const char *file, int_t line, const char *expr, ER
 #define FMODE_INDIRECT_WRITE 		0x0
 #define FMODE_INDIRECT_READ 		0x1
 #define FMODE_AUTOMATIC_POLLING 	0x2
-#define FMODE_MEMORY_MAPPING        0x3
+#define FMODE_MEMORY_MAPPED        0x3
 
 #define DMODE_NO_DATA 				0x0
 #define DMODE_SINGLE_LINE 			0x1
@@ -347,6 +347,19 @@ static const QSPI_TRANSFER_CONFIG_T FLASH_CMD_QPP = {
     .instruction = 0x32,
 };
 
+// SPI Memmap
+static const QSPI_TRANSFER_CONFIG_T FLASH_CMD_MAP = {
+    .fmode = FMODE_MEMORY_MAPPED,
+    .dmode = DMODE_FOUR_LINES,
+    .dcyc = 8,
+    .absize = ABSIZE_8BIT,
+    .abmode = ABMODE_NO_ALTERNATE_BYTES,
+    .adsize = ADSIZE_24BIT,
+    .admode = ADMODE_SINGLE_LINE,
+    .imode = IMODE_SINGLE_LINE,
+    .instruction = 0x6b,
+};
+
 // メッセージ番号
 enum {
   MSG_NONE = 0,
@@ -541,26 +554,12 @@ void mpf_send(int msg, intptr_t src, intptr_t dest, size_t size, DRVFLX_CALLBACK
     assert(er == E_OK);
 }
 
-
-static const QSPI_TRANSFER_CONFIG_T FLASH_CMD_MEMMAP = {
-    .fmode = FMODE_MEMORY_MAPPING,
-    .dmode = DMODE_FOUR_LINES,
-    .dcyc = 8,
-    .abmode = ABMODE_NO_ALTERNATE_BYTES,
-    .adsize = ADSIZE_24BIT,
-    .admode = ADMODE_SINGLE_LINE,
-    .imode = IMODE_SINGLE_LINE,
-    .instruction = 0x6B,
-};
-
 /*
  * SPIフラッシュ設定
  */
 void qspi_flash_configure()
 {
-    qspi_transfer(&FLASH_CMD_MEMMAP, NULL);
-
-    return;
+    DBGLOG0("qspi_flash_configure");
 
      // BUSYクリア待ち
     qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
@@ -583,6 +582,8 @@ void qspi_flash_configure()
     qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
     qspi_transfer(&FLASH_CMD_ULBPR, NULL);
     qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+
+    qspi_config(&FLASH_CMD_MAP);
 }
 
 /*
@@ -688,6 +689,54 @@ int qspi_flash_erase(intptr_t flash_addr, size_t length)
     return 0;
 }
 
+
+int qspi_config(const QSPI_TRANSFER_CONFIG_T* config)
+{
+    DBGLOG0("qspi_config");
+    assert(config);
+
+    ER er = E_OK;
+    FLGPTN flgptn = 0;
+    int spi_error = 0;
+
+    assert(drvcmn_getreg32(QSPI_R_BASE + 0x8 /* QUADSPI_SR */, 5, 0x1) == 0);
+
+    // ステータスレジスタクリア
+    drvcmn_setreg32(QSPI_R_BASE + 0x0C /* QUADSPI_FCR */, 0, (0x1 << 1) | (0x1 << 0), ~(uint32_t) 0);    // CTCF,CTEF
+
+    // イベントフラグクリア
+//    er = clr_flg(FLG_DRVFLX, ~FLGPTN_QSPI_TRANSFER_COMPLETE);
+//    assert(er == E_OK);
+
+    // 割込み有効
+//    drvcmn_setreg32(QSPI_R_BASE + 0x0 /* QUADSPI_CR */, 0, (0x1 << 16) | (0x1 << 17), ~(uint32_t) 0);    // TCIE, TEIE
+
+    // QUADSPI_CCR
+    uint32_t ccr_val = 0;
+    ccr_val = drvcmn_getreg32(QSPI_R_BASE + 0x14 /* QUADSPI_CCR */, 0, ~(uint32_t) 0);   // QUADSPI_CCR
+    drvcmn_setreg32((intptr_t) &ccr_val, 26, 0x3, config->fmode);        // FMODE
+    drvcmn_setreg32((intptr_t) &ccr_val, 24, 0x3, config->dmode);        // DMODE
+    drvcmn_setreg32((intptr_t) &ccr_val, 18, 0x1f, config->dcyc);        // DCYC
+    drvcmn_setreg32((intptr_t) &ccr_val, 16, 0x3, config->absize);       // ABSIZE
+    drvcmn_setreg32((intptr_t) &ccr_val, 14, 0x3, config->abmode);       // ABMODE
+    drvcmn_setreg32((intptr_t) &ccr_val, 12, 0x3, config->adsize);       // ADSIZE
+    drvcmn_setreg32((intptr_t) &ccr_val, 10, 0x3, config->admode);       // ADMODE
+    drvcmn_setreg32((intptr_t) &ccr_val, 8, 0x3, config->imode);         // IMODE
+    drvcmn_setreg32((intptr_t) &ccr_val, 0, 0xff, config->instruction);  // INSTRUCTION
+
+    DBGLOG2("CCR %08x, FMODE %02x", ccr_val, config->fmode);
+    drvcmn_setreg32(QSPI_R_BASE + 0x14 /* QUADSPI_CCR */, 0, ~(uint32_t) 0, ccr_val);    // set
+
+
+//    er = twai_flg(FLG_DRVFLX, FLGPTN_QSPI_TRANSFER_COMPLETE, TWF_ANDW, &flgptn, 3000);
+//    assert(er == E_OK);
+
+    // 割込み無効
+    drvcmn_setreg32(QSPI_R_BASE + 0x0 /* QUADSPI_CR */, 0, (0x1 << 16) | (0x1 << 17), 0);   // TCIE, TEIE
+
+    return 0;
+}
+
 /*
  * QSPIの転送開始
  */
@@ -702,7 +751,7 @@ int qspi_transfer(const QSPI_TRANSFER_CONFIG_T* config, const QSPI_TRANSFER_DATA
     assert(drvcmn_getreg32(QSPI_R_BASE + 0x8 /* QUADSPI_SR */, 5, 0x1) == 0);
 
     // データ転送がある場合
-    if (config->dmode != DMODE_NO_DATA && config->fmode != FMODE_MEMORY_MAPPING) {
+    if (config->dmode != DMODE_NO_DATA) {
         // QUADSPI_DLR
         assert(data);
         assert(data->length > 0);
@@ -747,7 +796,7 @@ int qspi_transfer(const QSPI_TRANSFER_CONFIG_T* config, const QSPI_TRANSFER_DATA
     }
 
     // データ転送がある場合
-    if (config->dmode != DMODE_NO_DATA && config->fmode != FMODE_MEMORY_MAPPING) {
+    if (config->dmode != DMODE_NO_DATA) {
         assert(data);
         assert(data->length > 0);
 

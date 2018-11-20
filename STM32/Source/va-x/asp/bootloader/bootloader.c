@@ -63,11 +63,20 @@ __attribute__ ((section(".ramfunc"))) void boot_load(void)
 //    db_addr = leb_addr + sizeof(LEB_HEADER_T);
 //    DBGLOG3("QFlash Header %d %d %d", db_header->data_id, db_header->data_len, db_header->db_state);
 
-    intptr_t db_addr = EFLASH_PROGRAM_AREA_ADDR;
-    DB_HEADER_T db_header = {0};
-    drvqflx_read(&db_header, db_addr, sizeof(DB_HEADER_T));
+    volatile uint32_t* tmp = 0x90130000;
+    DBGLOG2("QFlash [0x%08x] %08x", tmp, *tmp);
+    tmp = 0x90130004;
+    DBGLOG2("QFlash [0x%08x] %08x", tmp, *tmp);
+    tmp = 0x90130008;
+    DBGLOG2("QFlash [0x%08x] %08x", tmp, *tmp);
+    tmp = 0x9013000C;
+    DBGLOG2("QFlash [0x%08x] %08x", tmp, *tmp);
 
-    DBGLOG3("QFlash Header %d %d %d", db_header.data_id, db_header.data_len, db_header.db_state);
+//    intptr_t db_addr = EFLASH_PROGRAM_AREA_ADDR;
+//    DB_HEADER_T db_header = {0};
+//    drvqflx_read(&db_header, db_addr, sizeof(DB_HEADER_T));
+//
+//    DBGLOG3("QFlash Header %d %d %d", db_header.data_id, db_header.data_len, db_header.db_state);
 
 
     if (is_new_firmware) {

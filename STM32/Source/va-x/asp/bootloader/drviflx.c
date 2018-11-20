@@ -136,8 +136,8 @@ int drviflx_initialize(intptr_t opt)
 {
     DBGLOG0("drviflx_initialize");
     // Enable Flash global interrupt
-    ER er = ena_int(IRQ_VECTOR_FLASH);
-    assert(er == E_OK);
+//    ER er = ena_int(IRQ_VECTOR_FLASH);
+//    assert(er == E_OK);
 
     /* Unlock the Flash to enable the flash control register access *************/
     HAL_FLASH_Unlock();
@@ -374,7 +374,7 @@ int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length)
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-int drviflx_erase(intptr_t addr, size_t length, DRVIFLX_CALLBACK_T callback)
+int drviflx_erase(intptr_t addr, size_t length)
 {
     size_t sector_size;
     intptr_t start_address, end_address;
@@ -384,8 +384,6 @@ int drviflx_erase(intptr_t addr, size_t length, DRVIFLX_CALLBACK_T callback)
     }
     s_status |= DRVIFLX_ERASING;
 
-    // Set callback
-    s_erase_callback = callback;
 
     start_address = addr;
     end_address = addr + (uint32_t) length - 1;
@@ -408,10 +406,13 @@ int drviflx_erase(intptr_t addr, size_t length, DRVIFLX_CALLBACK_T callback)
     EraseInitStruct.Sector = s_erase_first_sector;
     EraseInitStruct.NbSectors = s_erase_last_sector - s_erase_first_sector + 1;
 
-    if (HAL_FLASHEx_Erase_IT(&EraseInitStruct) != HAL_OK) {
+    uint32_t sectorError;
+    if (HAL_FLASHEx_Erase(&EraseInitStruct, &sectorError) != HAL_OK) {
         s_status &= ~DRVIFLX_ERASING;
         return DRVIFLX_RES_NG;
     }
+
+    s_status &= ~DRVIFLX_ERASING;
 
     return DRVIFLX_RES_OK;
 }

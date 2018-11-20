@@ -1,7 +1,7 @@
 MEMORY
 {
     ROM1 (rx) : ORIGIN = 0x08000000, LENGTH = 256K
-    ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 768K
+    ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 512K
     RAM1 (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
     RAM2 (rwx) : ORIGIN = 0x20020000, LENGTH = 368K
 }
@@ -16,14 +16,43 @@ STARTUP(start.o)
 
 SECTIONS
 {
-/*    .startup :
+/*
+    .bootloader :
     {
-    } > ROM2
-    .program :
+        KEEP(*(.vector))
+        . = ALIGN(16);
+        *start.o(.text*)
+        __bootload = . ;
+        *bootloader.o(.text*)
+        *drviflx.o(.text*)
+        *drviflx_hal.o(.text*)
+        *drviflx_hal_ex.o(.text*)
+    } > ROM1
+    
+    .bootloaderrodata : { 
+        *start.o(.rodata*) 
+        *bootloader.o(.rodata*)
+        *drviflx.o(.rodata*)
+        *drviflx_hal.o(.rodata*)
+        *drviflx_hal_ex.o(.rodata*)
+    } > ROM1
+    
+    .text :
     {
-        . = ALIGN(4);
-        *apl*(.text*)
+        __text = . ;
+        *startup.o(.text*)
+        *(.text*)
+        *(.glue_7t)
+        *(.glue_7)
     } > ROM2
+*/
+
+/*
+    .ramfunc : 
+    {
+        *bootloader.o(.text*)
+        *bootloader.o(.rodata*)
+    } > RAM1
 */
 
     .text :
@@ -41,7 +70,7 @@ SECTIONS
 
     .rodata : { 
         *(.rodata*) 
-    } > ROM1
+    } > ROM2
 
     . = ALIGN(4);
     __idata_start = . ;
@@ -51,7 +80,12 @@ SECTIONS
         *(vtable)
         *(.data*)
     } > RAM1
-    __idata_end = __idata_start + SIZEOF(.data);
+    
+    __ramfunc_start = __idata_start + SIZEOF(.data);
+    .ramfunc : AT(__ramfunc_start)
+    {
+    } > RAM1
+    __idata_end = __ramfunc_start + SIZEOF(.ramfunc);
     _edata  =  . ;
     PROVIDE (edata = .);
     . = ALIGN(4);

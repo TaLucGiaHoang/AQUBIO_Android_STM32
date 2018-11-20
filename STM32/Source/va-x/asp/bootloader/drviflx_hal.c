@@ -303,6 +303,7 @@ HAL_StatusTypeDef HAL_FLASH_Program_IT(uint32_t TypeProgram, uint32_t Address, u
   */
 void HAL_FLASH_IRQHandler(intptr_t exinf)
 {
+    return;
   uint32_t temp = 0;
   
   /* If the program operation is completed, disable the PG Bit */

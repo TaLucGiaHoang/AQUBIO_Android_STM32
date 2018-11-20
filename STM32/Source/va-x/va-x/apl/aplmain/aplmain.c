@@ -150,17 +150,17 @@ static const EVENT_DEST_T EVENT_DEST_TBL[] = {
  */
 void aplmain_task(intptr_t exinf)
 {
-	DBGLOG0("main_task() starts.");
+    DBGLOG0("main_task() starts.");
 
     // マイコンのペリフェラル初期化
-//    drvcmn_initialize_peripherals();
+    drvcmn_initialize_peripherals();
 
     // できるだけ早く認証可能な状態にするため, 認証機能を先に開始
     mdlauth_trigger_start();
 
     // 他アプリから起動されない機能をここで起動
     cmntimer_initialize();	// 共用タイマータスク
-//    mdlstrg_initialize(mdlstrg_callback);	// ストレージミドル
+    mdlstrg_initialize(mdlstrg_callback);	// ストレージミドル
 
     // 各アプリを起動
     start_apps();

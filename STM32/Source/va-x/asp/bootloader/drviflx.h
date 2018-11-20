@@ -45,7 +45,7 @@ int drviflx_readi(uint8_t* dest, intptr_t src_addr, size_t length);
 int drviflx_read(uint8_t* dest, intptr_t src_addr, size_t length, DRVIFLX_CALLBACK_T callback);
 int drviflx_write(intptr_t src_addr, uint8_t* dest, size_t length, DRVIFLX_CALLBACK_T callback);
 int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length);
-int drviflx_erase(intptr_t addr, size_t length, DRVIFLX_CALLBACK_T callback);
+int drviflx_erase(intptr_t addr, size_t length);
 int drviflx_protect(intptr_t addr, size_t length, bool_t protect, DRVIFLX_CALLBACK_T callback);
 int drviflx_flash_addr(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* block, size_t* block_size);
 

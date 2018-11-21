@@ -562,26 +562,26 @@ void qspi_flash_configure()
     DBGLOG0("qspi_flash_configure");
 
      // BUSYクリア待ち
-    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
 
     // リセットコマンド
-    qspi_transfer(&FLASH_CMD_RSTEN, NULL);
-    qspi_transfer(&FLASH_CMD_RST, NULL);
-    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
-    dly_tsk(1);
+//    qspi_transfer(&FLASH_CMD_RSTEN, NULL);
+//    qspi_transfer(&FLASH_CMD_RST, NULL);
+//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+//    dly_tsk(1);
 
     // Configuration Register の [1]IOC ビットをセット
     qspi_transfer(&FLASH_CMD_WREN, NULL);	// Write Enable
-    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
+//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
     qspi_transfer(&FLASH_CMD_WRSR,
                   &(QSPI_TRANSFER_DATA_T){.mcuaddr = (uint8_t[]){0x00, 0x02}, .length = 2});
-    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
 
-    // 書込み保護を全て解除(Global Block-Protection Unlock)
-    qspi_transfer(&FLASH_CMD_WREN, NULL);	// Write Enable
-    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
-    qspi_transfer(&FLASH_CMD_ULBPR, NULL);
-    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+//    // 書込み保護を全て解除(Global Block-Protection Unlock)
+//    qspi_transfer(&FLASH_CMD_WREN, NULL);	// Write Enable
+//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
+//    qspi_transfer(&FLASH_CMD_ULBPR, NULL);
+//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
 
     qspi_config(&FLASH_CMD_MAP);
 }
@@ -801,37 +801,39 @@ int qspi_transfer(const QSPI_TRANSFER_CONFIG_T* config, const QSPI_TRANSFER_DATA
         assert(data->length > 0);
 
         // フラグクリア
-        er = clr_flg(FLG_DRVFLX, ~FLGPTN_DMA_COMPLETE);
-        assert(er == E_OK);
+//        er = clr_flg(FLG_DRVFLX, ~FLGPTN_DMA_COMPLETE);
+//        assert(er == E_OK);
 
-        // DMA設定
-        DRVCMN_DMA_XFER_SETTING_T dmas_setting = {0};
-        if (config->fmode == FMODE_INDIRECT_READ) {
-            dmas_setting.dir = DRVCMN_DMA_DIR_P2M;
-            dmas_setting.src = QSPI_R_BASE + 0x20;
-            dmas_setting.dest = (uintptr_t)data->mcuaddr;
-            dmas_setting.use_fifo = true;
-        } else if (config->fmode == FMODE_INDIRECT_WRITE) {
-            dmas_setting.dir = DRVCMN_DMA_DIR_M2P;
-            dmas_setting.src = (uintptr_t)data->mcuaddr;
-            dmas_setting.dest = QSPI_R_BASE + 0x20;
-            dmas_setting.use_fifo = true;
-        } else {
-            assert(false);
-        }
-        dmas_setting.nbytes = data->length;
-        dmas_setting.nxfer = 1;
-        dmas_setting.isr = dma_isr_callback;
+        drvcmn_setreg32(QSPI_R_BASE + 0x20 /* QUADSPI_DR */, 0, ~(uint32_t)0, *(uint32_t*)data->mcuaddr);
 
-        // DMAストリーム有効
-        drvcmn_dma_transfer_enable(&DMA_STREAM, &dmas_setting);
-
-        // QSPI DMA有効
-        drvcmn_setreg32(QSPI_R_BASE + 0x0 /* QUADSPI_CR */, 2, 0x1, 1);	// DMAEN => 1
-
-        // QSPI & DMA 転送完了待ち
-        er = twai_flg(FLG_DRVFLX, FLGPTN_QSPI_TRANSFER_COMPLETE | FLGPTN_DMA_COMPLETE, TWF_ANDW, &flgptn, 3000);
-        assert(er == E_OK);
+//        // DMA設定
+//        DRVCMN_DMA_XFER_SETTING_T dmas_setting = {0};
+//        if (config->fmode == FMODE_INDIRECT_READ) {
+//            dmas_setting.dir = DRVCMN_DMA_DIR_P2M;
+//            dmas_setting.src = QSPI_R_BASE + 0x20;
+//            dmas_setting.dest = (uintptr_t)data->mcuaddr;
+//            dmas_setting.use_fifo = true;
+//        } else if (config->fmode == FMODE_INDIRECT_WRITE) {
+//            dmas_setting.dir = DRVCMN_DMA_DIR_M2P;
+//            dmas_setting.src = (uintptr_t)data->mcuaddr;
+//            dmas_setting.dest = QSPI_R_BASE + 0x20;
+//            dmas_setting.use_fifo = true;
+//        } else {
+//            assert(false);
+//        }
+//        dmas_setting.nbytes = data->length;
+//        dmas_setting.nxfer = 1;
+//        dmas_setting.isr = dma_isr_callback;
+//
+//        // DMAストリーム有効
+//        drvcmn_dma_transfer_enable(&DMA_STREAM, &dmas_setting);
+//
+//        // QSPI DMA有効
+//        drvcmn_setreg32(QSPI_R_BASE + 0x0 /* QUADSPI_CR */, 2, 0x1, 1);	// DMAEN => 1
+//
+//        // QSPI & DMA 転送完了待ち
+//        er = twai_flg(FLG_DRVFLX, FLGPTN_QSPI_TRANSFER_COMPLETE | FLGPTN_DMA_COMPLETE, TWF_ANDW, &flgptn, 3000);
+//        assert(er == E_OK);
     } else {	// データ転送が無い場合
         // TCフラグ待ち
 //        er = twai_flg(FLG_DRVFLX, FLGPTN_QSPI_TRANSFER_COMPLETE, TWF_ANDW, &flgptn, 3000);
@@ -841,7 +843,7 @@ int qspi_transfer(const QSPI_TRANSFER_CONFIG_T* config, const QSPI_TRANSFER_DATA
     // 割込み無効
     drvcmn_setreg32(QSPI_R_BASE + 0x0 /* QUADSPI_CR */, 0, (0x1 << 16) | (0x1 << 17), 0);	// TCIE, TEIE
     // DMAストリーム無効
-    drvcmn_dma_transfer_disable(&DMA_STREAM);
+//    drvcmn_dma_transfer_disable(&DMA_STREAM);
     // QSPI DMA無効
     drvcmn_setreg32(QSPI_R_BASE + 0x0 /* QUADSPI_CR */, 2, 0x1, 0);	// DMAEN => 0
 

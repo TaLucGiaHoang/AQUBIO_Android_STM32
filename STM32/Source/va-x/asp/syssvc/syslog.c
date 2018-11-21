@@ -128,7 +128,7 @@ syslog_initialize(intptr_t exinf)
  *
  *  CPUロック状態や実行コンテキストによらず動作できるように実装してある．
  */
-ER
+__attribute__ ((section(".ramfunc"))) ER
 syslog_wri_log(uint_t prio, const SYSLOG *p_syslog)
 {
 	SIL_PRE_LOC;

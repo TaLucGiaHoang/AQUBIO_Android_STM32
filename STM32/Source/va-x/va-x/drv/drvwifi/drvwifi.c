@@ -261,6 +261,7 @@ void drvwifi_send(const uint8_t* data, size_t size)
 
 void drvwifi_receive(uint8_t* data, size_t size)
 {
+    DBGLOG0("drvwifi_receive");
     mpf_send(DTQ_DRVWIFI_RX, MSG_RECEIVE, (intptr_t)data, size);
 }
 
@@ -587,12 +588,16 @@ void wifi_send(const uint8_t* data, size_t size)
 
 void wifi_receive(uint8_t* data, size_t size)
 {
+    DBGLOG0("wifi_receive");
     assert(size > 0);
 
     size_t count = 0;
     int error = uart_receive(&count, data, size, TMO_FEVR);
 
+    DBGLOG0("Receive completed");
+
     if (s_callback) {
+        DBGLOG0("Receive completed callback");
         s_callback(DRVWIFI_EVT_TCP_RECEIVE_COMPLETE, error, count);
     }
 }

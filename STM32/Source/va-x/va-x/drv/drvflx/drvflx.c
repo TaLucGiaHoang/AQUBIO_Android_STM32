@@ -28,7 +28,7 @@
  */
 
 // デバッグログ
-#if 0
+#if 1
 #define DBGLOG0(msg)					syslog(LOG_NOTICE, "[DRVFLX]" msg)
 #define DBGLOG1(msg, arg1)				syslog(LOG_NOTICE, "[DRVFLX]" msg, arg1)
 #define DBGLOG2(msg, arg1, arg2)		syslog(LOG_NOTICE, "[DRVFLX]" msg, arg1, arg2)

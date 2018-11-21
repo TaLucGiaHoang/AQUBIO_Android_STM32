@@ -16,13 +16,17 @@ STARTUP(start.o)
 
 SECTIONS
 {
-/*
-    .bootloader :
+    .ramfunc :
     {
         KEEP(*(.vector))
         . = ALIGN(16);
         *start.o(.text*)
         __bootload = . ;
+        *target_inithook.o(.text*)
+        *core_support.o(.text*)
+        *chip_serial.o(.text*)
+        *log_output.o(.text*)
+        
         *bootloader.o(.text*)
         *drviflx.o(.text*)
         *drviflx_hal.o(.text*)
@@ -30,7 +34,12 @@ SECTIONS
     } > ROM1
     
     .bootloaderrodata : { 
-        *start.o(.rodata*) 
+        *start.o(.rodata*)
+		*target_inithook.o(.*)
+		*core_support.o(.rodata*)
+		*chip_serial.o(.rodata*)
+		*log_output.o(.rodata*)
+		
         *bootloader.o(.rodata*)
         *drviflx.o(.rodata*)
         *drviflx_hal.o(.rodata*)
@@ -45,16 +54,29 @@ SECTIONS
         *(.glue_7t)
         *(.glue_7)
     } > ROM2
-*/
+
+    _etext = .	;
+    PROVIDE (etext = .)	;
+
+    .rodata : { 
+        *(.rodata*) 
+    } > ROM2
+
+    . = ALIGN(4);
+    __idata_start = . ;
+    .data   :  AT(__idata_start) 
+    {
+        __data_start = . ;
+        *(vtable)
+        *(.data*)
+    } > RAM1
+    __idata_end = __idata_start + SIZEOF(.data);
+    _edata  =  . ;
+    PROVIDE (edata = .);
+    . = ALIGN(4);
+    
 
 /*
-    .ramfunc : 
-    {
-        *bootloader.o(.text*)
-        *bootloader.o(.rodata*)
-    } > RAM1
-*/
-
     .text :
     {
         KEEP(*(.vector))
@@ -63,14 +85,14 @@ SECTIONS
         *(.text*)
         *(.glue_7t)
         *(.glue_7)
-    } > ROM1
+    } > ROM
 
     _etext = .	;
     PROVIDE (etext = .)	;
 
     .rodata : { 
         *(.rodata*) 
-    } > ROM2
+    } > ROM
 
     . = ALIGN(4);
     __idata_start = . ;
@@ -89,7 +111,7 @@ SECTIONS
     _edata  =  . ;
     PROVIDE (edata = .);
     . = ALIGN(4);
-
+*/
     .bss       :
     {
        __bss_start = .	;

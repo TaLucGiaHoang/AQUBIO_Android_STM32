@@ -150,7 +150,7 @@ static const EVENT_DEST_T EVENT_DEST_TBL[] = {
  */
 void aplmain_task(intptr_t exinf)
 {
-    DBGLOG0("main_task() starts.");
+    DBGLOG0("Version 1.0.");
 
     // マイコンのペリフェラル初期化
     drvcmn_initialize_peripherals();

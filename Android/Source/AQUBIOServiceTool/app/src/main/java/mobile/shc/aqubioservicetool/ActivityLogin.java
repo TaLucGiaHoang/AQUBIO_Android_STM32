@@ -74,9 +74,9 @@ public class ActivityLogin extends Activity {
         txtID = (EditText)findViewById(R.id.txt_loginID);
         txtPass = (EditText)findViewById(R.id.txt_loginPass);
         txtName = (EditText)findViewById(R.id.txt_loginName);
-        lbID = (TextView) findViewById(R.id.lbName);
-        lbPass = (TextView)findViewById(R.id.lbLogin);
-        lbName = (TextView)findViewById(R.id.lbPass);
+        lbID = (TextView) findViewById(R.id.lbLogin);
+        lbPass = (TextView)findViewById(R.id.lbPass);
+        lbName = (TextView)findViewById(R.id.lbName);
 
         SharedPreferences prefs = getSharedPreferences("LANGUAGE", MODE_PRIVATE);
         indexLanguage = prefs.getInt("LANGUAGE_INDEX", 0);

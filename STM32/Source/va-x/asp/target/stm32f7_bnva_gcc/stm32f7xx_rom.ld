@@ -1,7 +1,7 @@
 MEMORY
 {
     ROM1 (rx) : ORIGIN = 0x08000000, LENGTH = 256K
-    ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 768K
+    ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 512K
     RAM1 (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
     RAM2 (rwx) : ORIGIN = 0x20020000, LENGTH = 368K
 }
@@ -16,32 +16,51 @@ STARTUP(start.o)
 
 SECTIONS
 {
-/*    .startup :
-    {
-    } > ROM2
-    .program :
-    {
-        . = ALIGN(4);
-        *apl*(.text*)
-    } > ROM2
-*/
-
-    .text :
+    .ramfunc :
     {
         KEEP(*(.vector))
         . = ALIGN(16);
+        *start.o(.text*)
+        __bootload = . ;
+        *target_inithook.o(.text*)
+        *core_support.o(.text*)
+        *chip_serial.o(.text*)
+        *log_output.o(.text*)
+        
+        *bootloader.o(.text*)
+        *drviflx.o(.text*)
+        *drviflx_hal.o(.text*)
+        *drviflx_hal_ex.o(.text*)
+    } > ROM1
+    
+    .bootloaderrodata : { 
+        *start.o(.rodata*)
+		*target_inithook.o(.*)
+		*core_support.o(.rodata*)
+		*chip_serial.o(.rodata*)
+		*log_output.o(.rodata*)
+		
+        *bootloader.o(.rodata*)
+        *drviflx.o(.rodata*)
+        *drviflx_hal.o(.rodata*)
+        *drviflx_hal_ex.o(.rodata*)
+    } > ROM1
+    
+    .text :
+    {
         __text = . ;
+        *startup.o(.text*)
         *(.text*)
         *(.glue_7t)
         *(.glue_7)
-    } > ROM1
+    } > ROM2
 
     _etext = .	;
     PROVIDE (etext = .)	;
 
     .rodata : { 
         *(.rodata*) 
-    } > ROM1
+    } > ROM2
 
     . = ALIGN(4);
     __idata_start = . ;
@@ -55,7 +74,44 @@ SECTIONS
     _edata  =  . ;
     PROVIDE (edata = .);
     . = ALIGN(4);
+    
 
+/*
+    .text :
+    {
+        KEEP(*(.vector))
+        . = ALIGN(16);
+        __text = . ;
+        *(.text*)
+        *(.glue_7t)
+        *(.glue_7)
+    } > ROM
+
+    _etext = .	;
+    PROVIDE (etext = .)	;
+
+    .rodata : { 
+        *(.rodata*) 
+    } > ROM
+
+    . = ALIGN(4);
+    __idata_start = . ;
+    .data   :  AT(__idata_start) 
+    {
+        __data_start = . ;
+        *(vtable)
+        *(.data*)
+    } > RAM1
+    
+    __ramfunc_start = __idata_start + SIZEOF(.data);
+    .ramfunc : AT(__ramfunc_start)
+    {
+    } > RAM1
+    __idata_end = __ramfunc_start + SIZEOF(.ramfunc);
+    _edata  =  . ;
+    PROVIDE (edata = .);
+    . = ALIGN(4);
+*/
     .bss       :
     {
        __bss_start = .	;

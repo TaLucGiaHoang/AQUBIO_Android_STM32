@@ -16,13 +16,15 @@
 #include "drviflx_hal.h"
 #include "drvcmn.h"
 
+#define RAMFUNC __attribute__ ((section(".ramfunc")))
+
 #if 1
 #define DUMP_REG32(name, addr) syslog(LOG_NOTICE, name " (0x%08p): => 0x%08x", addr, drvcmn_getreg32(addr, 0, UINT32_MAX));
 #else
 #define DUMP_REG32(name, addr)
 #endif
 
-#if 1
+#if 0
 #define DBGLOG0(msg)                    syslog(LOG_NOTICE, "[DRVIFLX]" msg)
 #define DBGLOG1(msg, arg1)              syslog(LOG_NOTICE, "[DRVIFLX]" msg, arg1)
 #define DBGLOG2(msg, arg1, arg2)        syslog(LOG_NOTICE, "[DRVIFLX]" msg, arg1, arg2)
@@ -136,8 +138,8 @@ int drviflx_initialize(intptr_t opt)
 {
     DBGLOG0("drviflx_initialize");
     // Enable Flash global interrupt
-    ER er = ena_int(IRQ_VECTOR_FLASH);
-    assert(er == E_OK);
+//    ER er = ena_int(IRQ_VECTOR_FLASH);
+//    assert(er == E_OK);
 
     /* Unlock the Flash to enable the flash control register access *************/
     HAL_FLASH_Unlock();
@@ -322,7 +324,7 @@ int drviflx_write(intptr_t src_addr, uint8_t* dest, size_t length, DRVIFLX_CALLB
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length)
+RAMFUNC int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length)
 {
     intptr_t mapped_addr;
     size_t sector, sector_size;
@@ -374,7 +376,7 @@ int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length)
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-int drviflx_erase(intptr_t addr, size_t length, DRVIFLX_CALLBACK_T callback)
+RAMFUNC int drviflx_erase(intptr_t addr, size_t length)
 {
     size_t sector_size;
     intptr_t start_address, end_address;
@@ -384,8 +386,6 @@ int drviflx_erase(intptr_t addr, size_t length, DRVIFLX_CALLBACK_T callback)
     }
     s_status |= DRVIFLX_ERASING;
 
-    // Set callback
-    s_erase_callback = callback;
 
     start_address = addr;
     end_address = addr + (uint32_t) length - 1;
@@ -408,10 +408,13 @@ int drviflx_erase(intptr_t addr, size_t length, DRVIFLX_CALLBACK_T callback)
     EraseInitStruct.Sector = s_erase_first_sector;
     EraseInitStruct.NbSectors = s_erase_last_sector - s_erase_first_sector + 1;
 
-    if (HAL_FLASHEx_Erase_IT(&EraseInitStruct) != HAL_OK) {
+    uint32_t sectorError;
+    if (HAL_FLASHEx_Erase(&EraseInitStruct, &sectorError) != HAL_OK) {
         s_status &= ~DRVIFLX_ERASING;
         return DRVIFLX_RES_NG;
     }
+
+    s_status &= ~DRVIFLX_ERASING;
 
     return DRVIFLX_RES_OK;
 }
@@ -493,7 +496,7 @@ int drviflx_protect(intptr_t addr, size_t length, bool_t protect, DRVIFLX_CALLBA
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-int drviflx_flash_addr(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
+RAMFUNC int drviflx_flash_addr(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
 {
     return drviflx_flash_addr_ictm(flash_addr, mapped_addr, sector, sector_size);
 }
@@ -521,7 +524,7 @@ int drviflx_flash_addr(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sect
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-static int drviflx_flash_addr_axim(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
+RAMFUNC static int drviflx_flash_addr_axim(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
 {
     intptr_t base_address = FLASHAXI_BASE;
     intptr_t address;
@@ -570,7 +573,7 @@ static int drviflx_flash_addr_axim(intptr_t* flash_addr, intptr_t* mapped_addr, 
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-static int drviflx_flash_addr_ictm(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
+RAMFUNC static int drviflx_flash_addr_ictm(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
 {
     intptr_t base_address = FLASHITCM_BASE;
     intptr_t address;
@@ -615,7 +618,7 @@ static int drviflx_flash_addr_ictm(intptr_t* flash_addr, intptr_t* mapped_addr, 
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-static int get_sector(intptr_t address, size_t* sector, size_t* sector_size)
+RAMFUNC static int get_sector(intptr_t address, size_t* sector, size_t* sector_size)
 {
     int i;
     int num_of_sector;
@@ -771,7 +774,7 @@ void drviflx_task(intptr_t exinf)
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
+RAMFUNC void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
 {
     if ((s_status & DRVIFLX_ERASING) == DRVIFLX_ERASING) {
         if (ReturnValue == 0xffffffff) {
@@ -801,7 +804,7 @@ void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-void HAL_FLASH_OperationErrorCallback(uint32_t ReturnValue)
+RAMFUNC void HAL_FLASH_OperationErrorCallback(uint32_t ReturnValue)
 {
     if ((s_status & DRVIFLX_ERASING) == DRVIFLX_ERASING) {
         s_erase_status = DRVIFLX_RES_NG;

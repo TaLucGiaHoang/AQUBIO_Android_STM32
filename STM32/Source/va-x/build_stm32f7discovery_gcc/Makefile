@@ -179,7 +179,6 @@ VAX_APPL_DIR = \
 	$(APPLDIR)/mdl/mdlstrg \
 	$(APPLDIR)/cmn/cmnbuf \
 	$(APPLDIR)/drv/drvflx \
-	$(APPLDIR)/drv/drviflx \
 	$(APPLDIR)/apl/aplui \
 	$(APPLDIR)/cmn/cmndbg \
 	$(APPLDIR)/cmn/cmnmalc \
@@ -234,7 +233,6 @@ VAX_APPL_COBJS = \
 	drvicc.o \
 	aplauth.o \
 	aplble.o \
-	bootloader.o \
 	aplmain.o \
 	aplevt.o \
 	mdlauth.o \
@@ -243,9 +241,6 @@ VAX_APPL_COBJS = \
 	aplui.o \
 	cmnbuf.o \
 	drvflx.o \
-	drviflx.o \
-	drviflx_hal.o \
-	drviflx_hal_ex.o \
 	cmndbg.o \
 	cmnmalc.o \
 	cmncrypt.o \
@@ -304,10 +299,10 @@ INCLUDES := $(INCLUDES)
 #					 イルと同じオプションを適用してコンパイルすべき，ソー
 #					 スがC言語のオブジェクトファイル．
 #
-KERNEL_DIR := $(KERNEL_DIR) $(SRCDIR)/kernel
+KERNEL_DIR := $(KERNEL_DIR) $(SRCDIR)/kernel $(SRCDIR)/bootloader
 KERNEL_ASMOBJS := $(KERNEL_ASMOBJS)
 KERNEL_COBJS := $(KERNEL_COBJS)
-KERNEL_CFLAGS := $(KERNEL_CFLAGS) -I$(SRCDIR)/kernel
+KERNEL_CFLAGS := $(KERNEL_CFLAGS) -I$(SRCDIR)/kernel -I$(SRCDIR)/bootloader
 ifdef OMIT_MAKEOFFSET
   OFFSET_H =
 else
@@ -462,6 +457,7 @@ clean:
 	rm -f $(OBJFILE) $(OBJNAME).syms $(OBJNAME).srec $(OBJNAME).bin
 	rm -f kernel_cfg.timestamp $(CFG2_OUT_SRCS)
 	rm -f cfg1_out.c $(CFG1_OUT) cfg1_out.syms cfg1_out.srec
+	rm -f linker.map
 ifndef KERNEL_LIB
 	rm -f libkernel.a
 endif

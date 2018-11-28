@@ -260,6 +260,8 @@ int32_t aplble_initialize(APLEVT_EVENT_RECEIVER_FUNC_T receiver_func)
     memset(s_ssid, 0, sizeof(s_ssid));
     memset(s_password, 0, sizeof(s_password));
 
+    mdlstrg_store_program_delete(0, 0);
+
     return 0;
 }
 
@@ -576,6 +578,7 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
             if (er != E_OK) {
                 ret = 0;
             } else {
+                s_received_data[6] = 0;
                 DBGLOG1("Wifi Recv: %s", s_received_data);
                 drvwifi_send((uint8_t*) "OK", 2);
                 er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
@@ -607,9 +610,15 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
         }
 
         if (ret) {
+
+            DBGLOG0("Erase flash");
             // Erase flash
             mdlstrg_store_program_delete(firmware_size, 0);
 
+            // DEBUG
+//            mdlstrg_store_program_delete(4096, 0);
+
+            DBGLOG0("Start data transfer");
             uint32_t start_address = 0;
             uint32_t receive_length;
             while (start_address < firmware_size) {
@@ -617,12 +626,14 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
                 if (receive_length > RECEIVE_BUFFER_SIZE) {
                     receive_length = RECEIVE_BUFFER_SIZE;
                 }
+                DBGLOG1("Wait for: (%d)", receive_length);
                 clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
                 drvwifi_receive(s_received_data, receive_length);
-                er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, TMO_FEVR);
+                er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, 10000);
                 assert(er == E_OK);
                 if (er != E_OK) {
                     ret = 0;
+                    break;
                 } else {
                     DBGLOG1("TCP Receive: (%d)", receive_length);
                     // Write receive buffer to QSPI flash
@@ -635,7 +646,11 @@ void aplble_update_firmware(const MDLBLE_DATA_T* data)
                 }
             }
 
-            DBGLOG1("Firmware Received: (%d)", firmware_size);
+            if (!ret) {
+                DBGLOG2("Firmware Received Error: (%d/%d)", start_address, firmware_size);
+            } else {
+                DBGLOG1("Firmware Received: (%d)", firmware_size);
+            }
         }
     }
 }
@@ -1265,7 +1280,7 @@ void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, i
 
 void mdlstrg_store_program_delete(size_t size, int index)
 {
-    DBGLOG0("mdlstrg_store_program_read");
+    DBGLOG0("mdlstrg_store_program_delete");
     ER er;
 
     MDLSTRG_REQUEST_T UPDATE_REQ = {
@@ -1276,6 +1291,6 @@ void mdlstrg_store_program_delete(size_t size, int index)
     };
     clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
     mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
-    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 30000);
+    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, TMO_FEVR);
     assert(er == E_OK);
 }

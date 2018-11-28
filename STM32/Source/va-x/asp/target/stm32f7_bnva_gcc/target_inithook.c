@@ -190,6 +190,7 @@ void hardware_init_hook(void)
 	/*
 	 * RCCのリセットとコンフィギュレーション
 	 */
+
 	sil_orw_mem((uint32_t *)(TADR_RCC_BASE+TOFF_RCC_CR), RCC_CR_HSION);
 	sil_wrw_mem((uint32_t *)(TADR_RCC_BASE+TOFF_RCC_CFGR), 0x00000000);
 	sil_anw_mem((uint32_t *)(TADR_RCC_BASE+TOFF_RCC_CR), (RCC_CR_PLLON | RCC_CR_CSSON | RCC_CR_HSEON));
@@ -345,7 +346,7 @@ ER sysclock_config(int mode)
 	sil_anw_mem((uint32_t *)(TADR_RCC_BASE+TOFF_RCC_CR), RCC_CR_HSEBYP);
 	sil_anw_mem((uint32_t *)(TADR_RCC_BASE+TOFF_RCC_CR), RCC_CR_HSEON);
 
-	/* HSEの無効化待ち */  
+	/* HSEの無効化待ち */
 	while((sil_rew_mem((uint32_t *)(TADR_RCC_BASE+TOFF_RCC_CR)) & RCC_CR_HSERDY) != 0){
 		if(tickstart > HSE_TIMEOUT_VALUE){
 			return E_TMOUT;

@@ -95,6 +95,8 @@
  */
 
 /* Private macro -------------------------------------------------------------*/
+#define RAMFUNC __attribute__ ((section(".ramfunc")))
+
 #define SET_BIT(REG, BIT)     ((REG) |= (BIT))
 
 #define CLEAR_BIT(REG, BIT)   ((REG) &= ~(BIT))
@@ -123,24 +125,24 @@ extern FLASH_ProcessTypeDef pFlash;
  * @{
  */
 /* Option bytes control */
-static HAL_StatusTypeDef FLASH_OB_EnableWRP(uint32_t WRPSector);
-static HAL_StatusTypeDef FLASH_OB_DisableWRP(uint32_t WRPSector);
-static HAL_StatusTypeDef FLASH_OB_RDP_LevelConfig(uint8_t Level);
-static HAL_StatusTypeDef FLASH_OB_BOR_LevelConfig(uint8_t Level);
-static HAL_StatusTypeDef FLASH_OB_BootAddressConfig(uint32_t BootOption, uint32_t Address);
-static uint32_t FLASH_OB_GetUser(void);
-static uint32_t FLASH_OB_GetWRP(void);
-static uint8_t FLASH_OB_GetRDP(void);
-static uint32_t FLASH_OB_GetBOR(void);
-static uint32_t FLASH_OB_GetBootAddress(uint32_t BootOption);
+RAMFUNC static HAL_StatusTypeDef FLASH_OB_EnableWRP(uint32_t WRPSector);
+RAMFUNC static HAL_StatusTypeDef FLASH_OB_DisableWRP(uint32_t WRPSector);
+RAMFUNC static HAL_StatusTypeDef FLASH_OB_RDP_LevelConfig(uint8_t Level);
+RAMFUNC static HAL_StatusTypeDef FLASH_OB_BOR_LevelConfig(uint8_t Level);
+RAMFUNC static HAL_StatusTypeDef FLASH_OB_BootAddressConfig(uint32_t BootOption, uint32_t Address);
+RAMFUNC static uint32_t FLASH_OB_GetUser(void);
+RAMFUNC static uint32_t FLASH_OB_GetWRP(void);
+RAMFUNC static uint8_t FLASH_OB_GetRDP(void);
+RAMFUNC static uint32_t FLASH_OB_GetBOR(void);
+RAMFUNC static uint32_t FLASH_OB_GetBootAddress(uint32_t BootOption);
 
 #if defined (FLASH_OPTCR_nDBANK)
-static void FLASH_MassErase(uint8_t VoltageRange, uint32_t Banks);
-static HAL_StatusTypeDef FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop,
+RAMFUNC static void FLASH_MassErase(uint8_t VoltageRange, uint32_t Banks);
+RAMFUNC static HAL_StatusTypeDef FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop,
         uint32_t Iwdgstdby, uint32_t NDBank, uint32_t NDBoot);
 #else
-static void FLASH_MassErase(uint8_t VoltageRange);
-static HAL_StatusTypeDef FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop, uint32_t Iwdgstdby);
+RAMFUNC static void FLASH_MassErase(uint8_t VoltageRange);
+RAMFUNC static HAL_StatusTypeDef FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop, uint32_t Iwdgstdby);
 #endif /* FLASH_OPTCR_nDBANK */
 
 #if defined (FLASH_OPTCR2_PCROP)
@@ -185,7 +187,7 @@ extern HAL_StatusTypeDef FLASH_WaitForLastOperation(uint32_t Timeout);
  *
  * @retval HAL Status
  */
-HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t *SectorError)
+__attribute__ ((section(".ramfunc"))) HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t *SectorError)
 {
     HAL_StatusTypeDef status = HAL_ERROR;
     uint32_t index = 0;
@@ -254,6 +256,7 @@ HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *pEraseInit, uint32_t
  *
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASHEx_Erase_IT(FLASH_EraseInitTypeDef *pEraseInit)
 {
     HAL_StatusTypeDef status = HAL_OK;
@@ -304,6 +307,7 @@ HAL_StatusTypeDef HAL_FLASHEx_Erase_IT(FLASH_EraseInitTypeDef *pEraseInit)
  *
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASHEx_OBProgram(FLASH_OBProgramInitTypeDef *pOBInit)
 {
     HAL_StatusTypeDef status = HAL_ERROR;
@@ -399,6 +403,7 @@ HAL_StatusTypeDef HAL_FLASHEx_OBProgram(FLASH_OBProgramInitTypeDef *pOBInit)
  *
  * @retval None
  */
+__attribute__ ((section(".ramfunc")))
 void HAL_FLASHEx_OBGetConfig(FLASH_OBProgramInitTypeDef *pOBInit)
 {
     pOBInit->OptionType = OPTIONBYTE_WRP | OPTIONBYTE_RDP | OPTIONBYTE_USER |\
@@ -636,6 +641,7 @@ static uint32_t FLASH_OB_GetUser(void)
  *
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 static void FLASH_MassErase(uint8_t VoltageRange)
 {
     /* if the previous operation is completed, proceed to erase all sectors */
@@ -664,7 +670,7 @@ static void FLASH_MassErase(uint8_t VoltageRange)
  *
  * @retval None
  */
-void FLASH_Erase_Sector(uint32_t Sector, uint8_t VoltageRange)
+RAMFUNC void FLASH_Erase_Sector(uint32_t Sector, uint8_t VoltageRange)
 {
     uint32_t tmp_psize = 0;
 
@@ -701,6 +707,7 @@ void FLASH_Erase_Sector(uint32_t Sector, uint8_t VoltageRange)
  * @brief  Return the FLASH Write Protection Option Bytes value.
  * @retval uint32_t FLASH Write Protection Option Bytes value
  */
+__attribute__ ((section(".ramfunc")))
 static uint32_t FLASH_OB_GetWRP(void)
 {
     /* Return the FLASH write protection Register value */
@@ -735,6 +742,7 @@ static uint32_t FLASH_OB_GetWRP(void)
  *            @arg OB_IWDG_STDBY_ACTIVE: IWDG counter active in STANDBY
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 static HAL_StatusTypeDef FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint32_t Stop, uint32_t Stdby, uint32_t Iwdgstop, uint32_t Iwdgstdby)
 {
     uint32_t useroptionmask = 0x00;
@@ -765,6 +773,7 @@ static HAL_StatusTypeDef FLASH_OB_UserConfig(uint32_t Wwdg, uint32_t Iwdg, uint3
  * @retval uint32_t FLASH User Option Bytes values: WWDG_SW(Bit4), IWDG_SW(Bit5), nRST_STOP(Bit6),
  *         nRST_STDBY(Bit7), IWDG_STDBY(Bit30) and IWDG_STOP(Bit31).
  */
+__attribute__ ((section(".ramfunc")))
 static uint32_t FLASH_OB_GetUser(void)
 {
     /* Return the User Option Byte */
@@ -788,6 +797,7 @@ static uint32_t FLASH_OB_GetUser(void)
  *
  * @retval HAL FLASH State
  */
+__attribute__ ((section(".ramfunc")))
 static HAL_StatusTypeDef FLASH_OB_EnableWRP(uint32_t WRPSector)
 {
     HAL_StatusTypeDef status = HAL_OK;
@@ -821,6 +831,7 @@ static HAL_StatusTypeDef FLASH_OB_EnableWRP(uint32_t WRPSector)
  *
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 static HAL_StatusTypeDef FLASH_OB_DisableWRP(uint32_t WRPSector)
 {
     HAL_StatusTypeDef status = HAL_OK;
@@ -849,6 +860,7 @@ static HAL_StatusTypeDef FLASH_OB_DisableWRP(uint32_t WRPSector)
  *
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 static HAL_StatusTypeDef FLASH_OB_RDP_LevelConfig(uint8_t Level)
 {
     HAL_StatusTypeDef status = HAL_OK;
@@ -874,6 +886,7 @@ static HAL_StatusTypeDef FLASH_OB_RDP_LevelConfig(uint8_t Level)
  *            @arg OB_BOR_OFF: Supply voltage ranges from 1.62 to 2.1 V
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 static HAL_StatusTypeDef FLASH_OB_BOR_LevelConfig(uint8_t Level)
 {
     /* Set the BOR Level */
@@ -902,6 +915,7 @@ static HAL_StatusTypeDef FLASH_OB_BOR_LevelConfig(uint8_t Level)
  *
  * @retval HAL Status
  */
+__attribute__ ((section(".ramfunc")))
 static HAL_StatusTypeDef FLASH_OB_BootAddressConfig(uint32_t BootOption, uint32_t Address)
 {
     HAL_StatusTypeDef status = HAL_OK;
@@ -932,6 +946,7 @@ static HAL_StatusTypeDef FLASH_OB_BootAddressConfig(uint32_t BootOption, uint32_
  *            @arg OB_RDP_LEVEL_1: Read protection of the memory
  *            @arg OB_RDP_LEVEL_2: Full chip protection
  */
+__attribute__ ((section(".ramfunc")))
 static uint8_t FLASH_OB_GetRDP(void)
 {
     uint8_t readstatus = OB_RDP_LEVEL_0;
@@ -960,6 +975,7 @@ static uint8_t FLASH_OB_GetRDP(void)
  *           - OB_BOR_LEVEL1: Supply voltage ranges from 2.1 to 2.4 V
  *           - OB_BOR_OFF   : Supply voltage ranges from 1.62 to 2.1 V
  */
+__attribute__ ((section(".ramfunc")))
 static uint32_t FLASH_OB_GetBOR(void)
 {
     /* Return the FLASH BOR level */
@@ -983,6 +999,7 @@ static uint32_t FLASH_OB_GetBOR(void)
  *            - OB_BOOTADDR_SRAM1 : Boot from SRAM1 (0x20010000)
  *            - OB_BOOTADDR_SRAM2 : Boot from SRAM2 (0x2004C000)
  */
+__attribute__ ((section(".ramfunc")))
 static uint32_t FLASH_OB_GetBootAddress(uint32_t BootOption)
 {
     uint32_t Address = 0;

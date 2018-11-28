@@ -645,7 +645,7 @@ void flash_erase(intptr_t dest, size_t length)
 {
     DBGLOG2("flash_erase: FLASH:0x%08x (%dbytes)", dest, length);
     drvflx_erase(dest, length, drvflx_callback);
-    ER er = twai_flg(FLG_MDLSTRG, FLGPTN_DRVFLX_ERASE_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 10000);
+    ER er = twai_flg(FLG_MDLSTRG, FLGPTN_DRVFLX_ERASE_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 30000);
     assert(er == E_OK);
 }
 
@@ -1480,13 +1480,18 @@ void delete_store_program(size_t size, int index)
     //found = db_get_data_addr(&addr, &block_size, &cursor, FLASH_AREA_STORE_PROGRAM, index);
     if (found) {
         if (size == 0) {
-            db_set_invalid(&cursor);
-        } else {
             intptr_t leb_addr = cursor.area_def->addr + (cursor.area_def->leb_size * index);
             size_t erase_size = size + sizeof(LEB_HEADER_T) + sizeof(DB_HEADER_T);
-            erase_size = (((erase_size - 1) / DRVFLX_ERASE_BLOCK_SIZE) + 1) * DRVFLX_ERASE_BLOCK_SIZE;
+            erase_size = cursor.area_def->leb_size;
             DBGLOG2("Erasing %08x, size %d", leb_addr, erase_size);
             flash_erase(leb_addr, erase_size);
+//            db_set_invalid(&cursor);
+        } else {
+            intptr_t leb_addr = cursor.area_def->addr + (cursor.area_def->leb_size * index);
+//            size_t erase_size = size + sizeof(LEB_HEADER_T) + sizeof(DB_HEADER_T);
+//            erase_size = (((erase_size - 1) / DRVFLX_ERASE_BLOCK_SIZE) + 1) * DRVFLX_ERASE_BLOCK_SIZE;
+//            DBGLOG2("Erasing %08x, size %d", leb_addr, erase_size);
+//            flash_erase(leb_addr, erase_size);
 
             // Write LEB header
             LEB_HEADER_T leb_header = {0};

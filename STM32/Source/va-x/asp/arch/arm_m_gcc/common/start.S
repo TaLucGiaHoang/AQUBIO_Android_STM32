@@ -46,6 +46,7 @@
 #define CAST(type, val)	(val)		/* 型キャストを行うマクロ */
 
 #include "kernel_impl.h"
+#include "bootloader.h"
 #include "arm_m.h"
 #include "target_asm.inc"
 
@@ -90,7 +91,6 @@ ALABEL(_start)
 	ldr r1, =(FPCCR)
 	str r0, [r1] 
 #endif /* TOPPERS_FPU_ENABLE */
-
 	/*
 	 * hardware_init_hookの呼び出し （0でない場合）
 	 *
@@ -153,7 +153,8 @@ ALABEL(start_5)
 	blx  r0
 
 ALABEL(start_6)
-	bl   sta_ker
+	//bl   sta_ker
+	bl   boot_load
 
 ALABEL(l_end)
 	b   l_end

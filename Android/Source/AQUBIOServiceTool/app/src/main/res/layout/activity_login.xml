@@ -110,7 +110,7 @@
                     android:background="@drawable/edittex_border"
                     android:textColor="@color/textWhite"
                     android:textStyle="bold"
-                    android:paddingLeft="5dp" />
+                    android:paddingLeft="5dp"/>
 
             </LinearLayout>
 

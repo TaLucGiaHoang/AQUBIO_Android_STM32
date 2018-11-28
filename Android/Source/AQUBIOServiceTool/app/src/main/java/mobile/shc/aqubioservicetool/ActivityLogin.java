@@ -32,8 +32,10 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static android.content.ContentValues.TAG;
 
@@ -41,10 +43,11 @@ public class ActivityLogin extends Activity {
 
     Context cn = this;
     boolean isSupport = true;
-    BluetoothAdapter mBluetoothAdapter;
     List<BluetoothDevice> lsItemDevices;
+    BluetoothAdapter mBluetoothAdapter;
     boolean mScanning;
     Handler mHandler;
+    Handler mHandlerRespon;
     String strAddress;
     ProgressDialog progressDialog;
     boolean mConnected = false;
@@ -53,6 +56,7 @@ public class ActivityLogin extends Activity {
     Button btnExe;
     Spinner spinner;
     int indexLanguage;
+    String STR_DEVICE_NAME = "";
 
 
     // custom dialog
@@ -108,6 +112,7 @@ public class ActivityLogin extends Activity {
 
             }
         });
+
         //check support BLE
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             if(indexLanguage == 0)
@@ -137,6 +142,7 @@ public class ActivityLogin extends Activity {
         }
         lsItemDevices = new ArrayList<BluetoothDevice>();
         mHandler = new Handler();
+        mHandlerRespon = new Handler();
     }
 
     public  void SetLanguage(int indexLa)
@@ -163,11 +169,22 @@ public class ActivityLogin extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        SharedPreferences prefs = getSharedPreferences("CREATE", MODE_PRIVATE);
+        int reCreate = prefs.getInt("RECREATE", 0);
+        if(reCreate == 1) {
+            SharedPreferences.Editor prefss = getSharedPreferences("CREATE", MODE_PRIVATE).edit();
+            prefss.putInt("RECREATE",0);
+            prefss.apply();
+            Log.e("RECREATE", "RECREATE ACTIVITY");
+            Intent intent = getIntent();
+            finish();
+            startActivity(intent);
+        }
         try {
             registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
             if (((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService != null) {
                 final boolean result = ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService.connect(strAddress);
-                Log.e(TAG, "Connect request result=" + result);
+                Log.e("RESUME", "Connect request result=" + result);
             }
         }catch (Exception ex)
         {
@@ -190,6 +207,22 @@ public class ActivityLogin extends Activity {
         try {
             unbindService(mServiceConnection);
             ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService = null;
+
+            //unpair with name device
+            Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+            if (pairedDevices.size() > 0) {
+                for (BluetoothDevice device : pairedDevices) {
+                    try {
+                        if(device.getName().compareTo(STR_DEVICE_NAME) == 0) {
+                            Method m = device.getClass()
+                                    .getMethod("removeBond", (Class[]) null);
+                            m.invoke(device, (Object[]) null);
+                        }
+                    } catch (Exception e) {
+                        Log.e("Unpair has been failed.", e.getMessage());
+                    }
+                }
+            }
         }catch (Exception ex)
         {
             Log.e("SHC","ActivityLogin Error at onDestroy : \n"+ ex.toString());
@@ -259,7 +292,25 @@ public class ActivityLogin extends Activity {
             if (isSupport) {
                 int resultLogin = CheckInfoLogin(txtID.getText().toString(),txtPass.getText().toString(),txtName.getText().toString());
                 if(resultLogin == 0) {
-                    lsItemDevices.clear();
+                    STR_DEVICE_NAME = txtName.getText().toString().trim();
+
+                    //unpair with name device
+                    Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+                    if (pairedDevices.size() > 0) {
+                        for (BluetoothDevice device : pairedDevices) {
+                            try {
+                                if(device.getName().compareTo(STR_DEVICE_NAME) == 0) {
+                                    Method m = device.getClass()
+                                            .getMethod("removeBond", (Class[]) null);
+                                    m.invoke(device, (Object[]) null);
+                                    Log.e("Unpair has been sucess.", STR_DEVICE_NAME);
+                                }
+                            } catch (Exception e) {
+                                Log.e("Unpair has been failed.", e.getMessage());
+                            }
+                        }
+                    }
+
                     scanLeDevice(true);
                     progressDialog = new ProgressDialog(this);
                     progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
@@ -337,7 +388,7 @@ public class ActivityLogin extends Activity {
             ret = 1;
         else if(strPass.compareTo(CHardCode.STR_LOGIN_PASS) != 0)
             ret = 2;
-        else if(strName.compareTo(CHardCode.STR_LOGIN_NAME) != 0)
+        else if(strName.trim().compareTo("") == 0 || strName.trim().isEmpty())
             ret = 3;
         return ret;
     }
@@ -350,7 +401,7 @@ public class ActivityLogin extends Activity {
                     @Override
                     public void run() {
                         mScanning = false;
-                        mBluetoothAdapter.stopLeScan(mLeScanCallback);
+                       mBluetoothAdapter.stopLeScan(mLeScanCallback);
                         if(strAddress == "" || strAddress == null){
                             if(progressDialog.isShowing())
                                 progressDialog.dismiss();
@@ -404,10 +455,10 @@ public class ActivityLogin extends Activity {
                         @Override
                         public void run() {
                             if(device.getName()!= null) {
-                                if (device.getName().compareTo(CHardCode.STR_DEVICE_NAME) == 0) {
+                                if (device.getName().compareTo(STR_DEVICE_NAME) == 0) {
                                     //get address
                                     strAddress = device.getAddress();
-                                    Log.e("SCAN",strAddress);
+                                    Log.e("SCAN RESULT",strAddress);
                                     //((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.connect(strAddress);
                                     mScanning = false;
                                     mBluetoothAdapter.stopLeScan(mLeScanCallback);
@@ -515,12 +566,21 @@ public class ActivityLogin extends Activity {
 
             if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
                 mConnected = true;
-                progressDialog.dismiss();
-                Log.e("CONNECT", "OK");
-                if (dialog != null) {
-                    if (!dialog.isShowing())
-                        ShowMsgPin();
-                }
+                Handler handler = new Handler();
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if(progressDialog.isShowing()) {
+
+                            progressDialog.dismiss();
+                            Log.e("CONNECT", "OK");
+                            if (dialog != null) {
+                                if (!dialog.isShowing())
+                                    ShowMsgPin();
+                            }
+                        }
+                    }
+                }, 5000);
             } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
                 Log.e("CONNECT", "ACTION_GATT_DISCONNECTED");
                 if(progressDialog.isShowing())
@@ -549,6 +609,8 @@ public class ActivityLogin extends Activity {
                             isVerify = true;
                         //Move to firmware activity
                         Intent myIntent = new Intent(cn, ActivityFrimwareUpdate.class);
+                        Log.e("INTENT STRADR",STR_DEVICE_NAME);
+                        intent.putExtra("strAdress",STR_DEVICE_NAME);
                         startActivity(myIntent);
 
                     } else if (((MyApplication) ActivityLogin.this.getApplication()).mBluetoothLeService.strData.compareTo("NG") == 0) {
@@ -656,6 +718,21 @@ public class ActivityLogin extends Activity {
                         progressDialog.setMessage(CHardCode.strWaittingSend);
                     }
                     progressDialog.show();
+                    mHandlerRespon.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(progressDialog.isShowing()) {
+                                progressDialog.dismiss();
+                                if(indexLanguage == 0)
+                                {
+                                    Toast.makeText(cn,CHardCode.jp_strTimeoutRespon,Toast.LENGTH_LONG).show();
+                                }
+                                else {
+                                    Toast.makeText(cn,CHardCode.strTimeoutRespon,Toast.LENGTH_LONG).show();
+                                }
+                            }
+                        }
+                    }, CHardCode.SCAN_PERIOD);
                     ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService.characteristicSet.setValue(CreatePackagePIN(txtPin.getText().toString()));
                     ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService.gattMain.writeCharacteristic(
                             ((MyApplication)ActivityLogin.this.getApplication()).mBluetoothLeService.characteristicSet);

@@ -57,9 +57,7 @@ public class ActivityFrimwareUpdate extends Activity {
     TextView txtSSID, txtPassword;
     byte[] dataSIID = new byte[70];
     ProgressDialog progressDialog;
-    int step = 0;
     Context cn = this;
-    Thread socketServerThread;
     ServerSocket ss;
 
     Handler mHandler;
@@ -125,7 +123,9 @@ public class ActivityFrimwareUpdate extends Activity {
         {
             Log.e("SHC","ActivityLogin Error at onResume : \n"+ ex.toString());
         }
-    }@Override
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         try {
@@ -134,6 +134,16 @@ public class ActivityFrimwareUpdate extends Activity {
         {
             Log.e("SHC","ActivityLogin Error at onPause : \n"+ ex.toString());
         }
+    }
+    @Override
+    public void onBackPressed()
+    {
+        // code here to show dialog
+        super.onBackPressed();  // optional depending on your needs
+        SharedPreferences.Editor prefs = getSharedPreferences("CREATE", MODE_PRIVATE).edit();
+        prefs.putInt("RECREATE",1);
+        prefs.apply();
+        finish();
     }
 
     @Override
@@ -372,8 +382,9 @@ public class ActivityFrimwareUpdate extends Activity {
                                 int blockSize = 4096;
                                 int blockCount = (fileContent.length + blockSize - 1) / blockSize;
                                 byte[] range = null;
-
+                                Log.e("BLOCKCOUNT",String.valueOf(blockCount));
                                 for (int i = 1; i <= blockCount; i++) {
+                                    Log.e("BLOCKSTEP",String.valueOf(i));
                                     int idx = (i - 1) * blockSize;
                                     range = Arrays.copyOfRange(fileContent, idx, idx + blockSize);
                                     output.write(range, 0, range.length);
@@ -494,8 +505,10 @@ public class ActivityFrimwareUpdate extends Activity {
             ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService.disconnect();
         }
         ((MyApplication)ActivityFrimwareUpdate.this.getApplication()).mBluetoothLeService = null;
-        Intent myIntent = new Intent(cn, ActivityLogin.class);
-        startActivity(myIntent);
+        SharedPreferences.Editor prefs = getSharedPreferences("CREATE", MODE_PRIVATE).edit();
+        prefs.putInt("RECREATE",1);
+        prefs.apply();
+        finish();
     }
 
     public void CreateDataSSID()

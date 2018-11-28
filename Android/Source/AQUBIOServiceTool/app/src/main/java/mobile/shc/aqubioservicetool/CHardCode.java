@@ -1,11 +1,8 @@
 package mobile.shc.aqubioservicetool;
 
 public class CHardCode {
-    public static String STR_DEVICE_NAME = "0123456789ABCDEF";
-    //public static String STR_DEVICE_NAME = "BLE";
-    public static String STR_LOGIN_ID = "Bionics";
+    public static String STR_LOGIN_ID = "bionics";
     public static String STR_LOGIN_PASS = "9999";
-    public static String STR_LOGIN_NAME = "Bionics";
     public static int STR_PORT = 5000;
     public static final int PER_COARSE = 123;
     public static final int PER_FINE = 124;
@@ -26,6 +23,7 @@ public class CHardCode {
     public static String strTitleWaittingSend = "Waiting for response";
     public static String strWaittingSend = "Please wait a while.";
     public static String strTimeout = "Cannot find device. Please try again";
+    public static String strTimeoutRespon = "No response. Please try again";
     public static String strErrID = "The ID is incorrect";
     public static String strErrPass = "The password is incorrect";
     public static String strErrName = "The name is incorrect";
@@ -47,6 +45,7 @@ public class CHardCode {
     public static String jp_strTitleWaittingSend = "レスポンスを待っています。";
     public static String jp_strWaittingSend = "しばらくお待ちください。";
     public static String jp_strTimeout = "デバイスが見つかりません。再度試してください。";
+    public static String jp_strTimeoutRespon = "応答がありません。再送信して下さい。";
     public static String jp_strErrID = "IDが間違っています。";
     public static String jp_strErrPass = "パスワードが間違っています。";
     public static String jp_strErrName = "名前が間違っています。";

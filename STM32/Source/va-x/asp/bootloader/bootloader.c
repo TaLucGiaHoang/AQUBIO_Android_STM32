@@ -2,6 +2,7 @@
 #include "kernel_impl.h"
 #include "drviflx.h"
 #include "drvqflx.h"
+#include "drvcmn.h"
 
 #if 1
 #define DBGLOG0(msg)                    syslog(LOG_NOTICE, "[BOOTLOADER]" msg)
@@ -15,10 +16,8 @@
 #define DBGLOG3(msg, arg1, arg2, arg3)
 #endif
 
-#define RAMFUNC __attribute__ ((section(".ramfunc")))
-
 #define EFLASH_PROGRAM_AREA_ADDR 0x130000
-#define IFLASH_PROGRAM_AREA_ADDR ADDR_FLASH_SECTOR_6 // 0x0008 0000
+#define IFLASH_PROGRAM_AREA_ADDR ADDR_FLASH_SECTOR_5 // 0x0004 0000
 #define MAX_PROGRAM_SIZE (ADDR_FLASH_SECTOR_END - IFLASH_PROGRAM_AREA_ADDR + 1)
 
 #define MAX_BUFFER_SIZE 1024
@@ -40,10 +39,18 @@ static const uint32_t BLOCK_STATE_VALID         =   ~(uint32_t)0x3; // 有効デ
 static const uint32_t BLOCK_STATE_FULL          =   ~(uint32_t)0x7; // データフル
 static const uint32_t BLOCK_STATE_INVALID       =   ~(uint32_t)0xF; // 無効(削除待ち)
 
-RAMFUNC void boot_load(void)
+static __inline__ void NVIC_SystemReset(void)
 {
-//    sta_ker();
-    //DEBUG
+    uint32_t reg_value;
+    reg_value = ((uint32_t) 0x5FAUL << SCB_AIRCR_VECTKEY_Pos) | SCB_AIRCR_SYSRESETREQ_Msk;
+    drvcmn_setreg32(TADR_SCB_BASE + TOFF_SCB_AIRCR, 0, SCB_AIRCR_VECTKEY_Msk | SCB_AIRCR_SYSRESETREQ_Msk, reg_value);
+
+    while (1) {}
+}
+
+void boot_load(void)
+{
+    // Initialize uart for debugging log
     target_initialize();
 
     drvqflx_initialize_peripherals();
@@ -110,21 +117,14 @@ RAMFUNC void boot_load(void)
             start_address += write_length;
         }
 
-        drviflx_erase(ADDR_FLASH_SECTOR_5, program_size);
+        // Clear is_new_firmware flag
+        db_header.db_state = BLOCK_STATE_INVALID;
+        drvqflx_write(EFLASH_PROGRAM_AREA_ADDR + 4, &db_header, sizeof(db_header));
 
-        start_address = 0;
-        uint8_t* buf = FLASHAXI_BASE + IFLASH_PROGRAM_AREA_ADDR;
-        while (start_address < program_size) {
-            write_length = program_size - start_address;
-            if (write_length > MAX_BUFFER_SIZE) {
-                write_length = MAX_BUFFER_SIZE;
-            }
-
-            drviflx_writei(ADDR_FLASH_SECTOR_5 + start_address, buf, write_length);
-
-            buf += write_length;
-            start_address += write_length;
-        }
+        // Reset board
+        DBGLOG0("Reset...");
+        NVIC_SystemReset();
+        return;
     }
 
     sta_ker();

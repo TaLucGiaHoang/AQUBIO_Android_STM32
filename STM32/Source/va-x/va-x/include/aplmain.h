@@ -13,5 +13,5 @@
 /*
  * 
  */
-__attribute__ ((section(".startup"))) void aplmain_task(intptr_t exinf);
+void aplmain_task(intptr_t exinf);
 

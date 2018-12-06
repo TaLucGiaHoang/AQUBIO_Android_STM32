@@ -49,7 +49,7 @@
 
 #ifndef TOPPERS_OMIT_SYSLOG
 
-__attribute__ ((section(".ramfunc"))) void
+void
 syslog(uint_t prio, const char *format, ...)
 {
 	SYSLOG	logbuf;

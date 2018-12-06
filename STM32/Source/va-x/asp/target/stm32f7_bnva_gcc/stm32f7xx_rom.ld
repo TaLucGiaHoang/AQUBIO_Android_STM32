@@ -1,7 +1,7 @@
 MEMORY
 {
     ROM1 (rx) : ORIGIN = 0x08000000, LENGTH = 256K
-    ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 512K
+    ROM2 (rx) : ORIGIN = 0x08040000, LENGTH = 768K
     RAM1 (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
     RAM2 (rwx) : ORIGIN = 0x20020000, LENGTH = 368K
 }
@@ -16,39 +16,116 @@ STARTUP(start.o)
 
 SECTIONS
 {
-    .ramfunc :
+    .bootloader :
     {
         KEEP(*(.vector))
         . = ALIGN(16);
-        *start.o(.text*)
-        __bootload = . ;
         *target_inithook.o(.text*)
         *core_support.o(.text*)
         *chip_serial.o(.text*)
+        *core_timer.o(.text*)
+        *chip_config.o(.text*)
+        *core_config.o(.text*)
         *log_output.o(.text*)
+
+        *task.o(.text*)
+        *wait.o(.text*)
+        *time_event.o(.text*)
+        *task_manage.o(.text*)
+        *task_refer.o(.text*)
+        *task_sync.o(.text*)
+        *task_except.o(.text*)
+        *semaphore.o(.text*)
+        *eventflag.o(.text*)
+        *dataqueue.o(.text*)
+        *pridataq.o(.text*)
+        *mailbox.o(.text*)
+        *mempfix.o(.text*)
+        *time_manage.o(.text*)
+        *cyclic.o(.text*)
+        *alarm.o(.text*)
+        *sys_manage.o(.text*)
+        *interrupt.o(.text*)
+        *exception.o(.text*)
+        
+        *log_output.o(.text*)
+        *vasyslog.o(.text*)
+        *t_perror.o(.text*)
+        *strerror.o(.text*)
+        
+        *banner.o(.text*)
+        *syslog.o(.text*)
+        *serial.o(.text*)
+        *logtask.o(.text*)
+        
+        *lib_a-memset.o(.text*)
+        *lib_a-memcpy-stub.o(.text*)
         
         *bootloader.o(.text*)
         *drviflx.o(.text*)
         *drviflx_hal.o(.text*)
         *drviflx_hal_ex.o(.text*)
+        *drvqflx.o(.text*)
+        *drvcmn_gpio.o(.text*)
     } > ROM1
     
-    .bootloaderrodata : { 
-        *start.o(.rodata*)
-		*target_inithook.o(.*)
-		*core_support.o(.rodata*)
-		*chip_serial.o(.rodata*)
-		*log_output.o(.rodata*)
-		
+    .bootloader_rodata : { 
+        *target_inithook.o(.*)
+        *core_support.o(.rodata*)
+        *chip_serial.o(.rodata*)
+        *core_timer.o(.rodata*)
+        *chip_config.o(.rodata*)
+        *core_config.o(.rodata*)
+        *log_output.o(.rodata*)
+        
+        *task.o(.rodata*)
+        *wait.o(.rodata*)
+        *time_event.o(.rodata*)
+        *task_manage.o(.rodata*)
+        *task_refer.o(.rodata*)
+        *task_sync.o(.rodata*)
+        *task_except.o(.rodata*)
+        *semaphore.o(.rodata*)
+        *eventflag.o(.rodata*)
+        *dataqueue.o(.rodata*)
+        *pridataq.o(.rodata*)
+        *mailbox.o(.rodata*)
+        *mempfix.o(.rodata*)
+        *time_manage.o(.rodata*)
+        *cyclic.o(.rodata*)
+        *alarm.o(.rodata*)
+        *sys_manage.o(.rodata*)
+        *interrupt.o(.rodata*)
+        *exception.o(.rodata*)
+        
+        *log_output.o(.rodata*)
+        *vasyslog.o(.rodata*)
+        *t_perror.o(.rodata*)
+        *strerror.o(.rodata*)
+        
+        *banner.o(.rodata*)
+        *syslog.o(.rodata*)
+        *serial.o(.rodata*)
+        *logtask.o(.rodata*)
+        
+        *lib_a-memset.o(.rodata*)
+        *lib_a-memcpy-stub.o(.rodata*)
+        
         *bootloader.o(.rodata*)
         *drviflx.o(.rodata*)
         *drviflx_hal.o(.rodata*)
         *drviflx_hal_ex.o(.rodata*)
+        *drvqflx.o(.rodata*)
+        *drvcmn_gpio.o(.rodata*)
     } > ROM1
     
     .text :
     {
         __text = . ;
+        *kernel_cfg.o(*.text*)
+        *kernel_cfg.o(*.rodata*)
+        *start.o(.text*)
+        *start.o(.rodata*)
         *startup.o(.text*)
         *(.text*)
         *(.glue_7t)
@@ -58,7 +135,7 @@ SECTIONS
     _etext = .	;
     PROVIDE (etext = .)	;
 
-    .rodata : { 
+    .rodata : {
         *(.rodata*) 
     } > ROM2
 
@@ -75,43 +152,6 @@ SECTIONS
     PROVIDE (edata = .);
     . = ALIGN(4);
     
-
-/*
-    .text :
-    {
-        KEEP(*(.vector))
-        . = ALIGN(16);
-        __text = . ;
-        *(.text*)
-        *(.glue_7t)
-        *(.glue_7)
-    } > ROM
-
-    _etext = .	;
-    PROVIDE (etext = .)	;
-
-    .rodata : { 
-        *(.rodata*) 
-    } > ROM
-
-    . = ALIGN(4);
-    __idata_start = . ;
-    .data   :  AT(__idata_start) 
-    {
-        __data_start = . ;
-        *(vtable)
-        *(.data*)
-    } > RAM1
-    
-    __ramfunc_start = __idata_start + SIZEOF(.data);
-    .ramfunc : AT(__ramfunc_start)
-    {
-    } > RAM1
-    __idata_end = __ramfunc_start + SIZEOF(.ramfunc);
-    _edata  =  . ;
-    PROVIDE (edata = .);
-    . = ALIGN(4);
-*/
     .bss       :
     {
        __bss_start = .	;

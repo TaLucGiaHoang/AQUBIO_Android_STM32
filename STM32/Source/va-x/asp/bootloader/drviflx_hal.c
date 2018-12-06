@@ -176,7 +176,6 @@ HAL_StatusTypeDef FLASH_WaitForLastOperation(uint32_t Timeout);
   * 
   * @retval HAL_StatusTypeDef HAL Status
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASH_Program(uint32_t TypeProgram, uint32_t Address, uint64_t Data)
 {
   HAL_StatusTypeDef status = HAL_ERROR;
@@ -243,7 +242,6 @@ HAL_StatusTypeDef HAL_FLASH_Program(uint32_t TypeProgram, uint32_t Address, uint
   * 
   * @retval HAL Status
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASH_Program_IT(uint32_t TypeProgram, uint32_t Address, uint64_t Data)
 {
   HAL_StatusTypeDef status = HAL_OK;
@@ -303,7 +301,6 @@ HAL_StatusTypeDef HAL_FLASH_Program_IT(uint32_t TypeProgram, uint32_t Address, u
   * @brief This function handles FLASH interrupt request.
   * @retval None
   */
-__attribute__ ((section(".ramfunc")))
 void HAL_FLASH_IRQHandler(intptr_t exinf)
 {
     return;
@@ -440,7 +437,6 @@ void HAL_FLASH_IRQHandler(intptr_t exinf)
   *                 - Mass Erase   : No return value expected
   * @retval None
   */
-__attribute__ ((section(".ramfunc")))
 __weak void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
 {
   /* Prevent unused argument(s) compilation warning */
@@ -459,7 +455,6 @@ __weak void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
   *                 - Mass Erase   : No return value expected
   * @retval None
   */
-__attribute__ ((section(".ramfunc")))
 __weak void HAL_FLASH_OperationErrorCallback(uint32_t ReturnValue)
 {
   /* Prevent unused argument(s) compilation warning */
@@ -492,7 +487,6 @@ __weak void HAL_FLASH_OperationErrorCallback(uint32_t ReturnValue)
   * @brief  Unlock the FLASH control register access
   * @retval HAL Status
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASH_Unlock(void)
 {
   if((FLASH->CR & FLASH_CR_LOCK) != RESET)
@@ -513,7 +507,6 @@ HAL_StatusTypeDef HAL_FLASH_Unlock(void)
   * @brief  Locks the FLASH control register access
   * @retval HAL Status
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASH_Lock(void)
 {
   /* Set the LOCK Bit to lock the FLASH Registers access */
@@ -526,7 +519,6 @@ HAL_StatusTypeDef HAL_FLASH_Lock(void)
   * @brief  Unlock the FLASH Option Control Registers access.
   * @retval HAL Status
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASH_OB_Unlock(void)
 {
   if((FLASH->OPTCR & FLASH_OPTCR_OPTLOCK) != RESET)
@@ -547,7 +539,6 @@ HAL_StatusTypeDef HAL_FLASH_OB_Unlock(void)
   * @brief  Lock the FLASH Option Control Registers access.
   * @retval HAL Status 
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASH_OB_Lock(void)
 {
   /* Set the OPTLOCK Bit to lock the FLASH Option Byte Registers access */
@@ -560,7 +551,6 @@ HAL_StatusTypeDef HAL_FLASH_OB_Lock(void)
   * @brief  Launch the option byte loading.
   * @retval HAL Status
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef HAL_FLASH_OB_Launch(void)
 {
   /* Set the OPTSTRT bit in OPTCR register */
@@ -611,7 +601,6 @@ uint32_t HAL_FLASH_GetError(void)
   * @param  Timeout: maximum flash operationtimeout
   * @retval HAL Status
   */
-__attribute__ ((section(".ramfunc")))
 HAL_StatusTypeDef FLASH_WaitForLastOperation(uint32_t Timeout)
 { 
 	/* Clear Error Code */
@@ -692,7 +681,6 @@ static void FLASH_Program_DoubleWord(uint32_t Address, uint64_t Data)
   * @param  Data: specifies the data to be programmed.
   * @retval None
   */
-__attribute__ ((section(".ramfunc")))
 static void FLASH_Program_Word(uint32_t Address, uint32_t Data)
 {
   /* If the previous operation is completed, proceed to program the new data */
@@ -719,7 +707,6 @@ static void FLASH_Program_Word(uint32_t Address, uint32_t Data)
   * @param  Data: specifies the data to be programmed.
   * @retval None
   */
-__attribute__ ((section(".ramfunc")))
 static void FLASH_Program_HalfWord(uint32_t Address, uint16_t Data)
 {
   /* If the previous operation is completed, proceed to program the new data */
@@ -747,7 +734,6 @@ static void FLASH_Program_HalfWord(uint32_t Address, uint16_t Data)
   * @param  Data: specifies the data to be programmed.
   * @retval None
   */
-__attribute__ ((section(".ramfunc")))
 static void FLASH_Program_Byte(uint32_t Address, uint8_t Data)
 {
   /* If the previous operation is completed, proceed to program the new data */
@@ -766,7 +752,6 @@ static void FLASH_Program_Byte(uint32_t Address, uint8_t Data)
   * @brief  Set the specific FLASH error flag.
   * @retval None
   */
-__attribute__ ((section(".ramfunc")))
 static void FLASH_SetErrorCode(void)
 {
   if(__HAL_FLASH_GET_FLAG(FLASH_FLAG_OPERR) != RESET)

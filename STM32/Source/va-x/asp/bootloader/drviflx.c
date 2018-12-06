@@ -16,8 +16,6 @@
 #include "drviflx_hal.h"
 #include "drvcmn.h"
 
-#define RAMFUNC __attribute__ ((section(".ramfunc")))
-
 #if 1
 #define DUMP_REG32(name, addr) syslog(LOG_NOTICE, name " (0x%08p): => 0x%08x", addr, drvcmn_getreg32(addr, 0, UINT32_MAX));
 #else
@@ -324,7 +322,7 @@ int drviflx_write(intptr_t src_addr, uint8_t* dest, size_t length, DRVIFLX_CALLB
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length)
+int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length)
 {
     intptr_t mapped_addr;
     size_t sector, sector_size;
@@ -376,7 +374,7 @@ RAMFUNC int drviflx_writei(intptr_t src_addr, uint8_t* dest, size_t length)
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC int drviflx_erase(intptr_t addr, size_t length)
+int drviflx_erase(intptr_t addr, size_t length)
 {
     size_t sector_size;
     intptr_t start_address, end_address;
@@ -496,7 +494,7 @@ int drviflx_protect(intptr_t addr, size_t length, bool_t protect, DRVIFLX_CALLBA
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC int drviflx_flash_addr(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
+int drviflx_flash_addr(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
 {
     return drviflx_flash_addr_ictm(flash_addr, mapped_addr, sector, sector_size);
 }
@@ -524,7 +522,7 @@ RAMFUNC int drviflx_flash_addr(intptr_t* flash_addr, intptr_t* mapped_addr, size
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC static int drviflx_flash_addr_axim(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
+static int drviflx_flash_addr_axim(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
 {
     intptr_t base_address = FLASHAXI_BASE;
     intptr_t address;
@@ -573,7 +571,7 @@ RAMFUNC static int drviflx_flash_addr_axim(intptr_t* flash_addr, intptr_t* mappe
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC static int drviflx_flash_addr_ictm(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
+static int drviflx_flash_addr_ictm(intptr_t* flash_addr, intptr_t* mapped_addr, size_t* sector, size_t* sector_size)
 {
     intptr_t base_address = FLASHITCM_BASE;
     intptr_t address;
@@ -618,7 +616,7 @@ RAMFUNC static int drviflx_flash_addr_ictm(intptr_t* flash_addr, intptr_t* mappe
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC static int get_sector(intptr_t address, size_t* sector, size_t* sector_size)
+static int get_sector(intptr_t address, size_t* sector, size_t* sector_size)
 {
     int i;
     int num_of_sector;
@@ -774,7 +772,7 @@ void drviflx_task(intptr_t exinf)
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
+void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
 {
     if ((s_status & DRVIFLX_ERASING) == DRVIFLX_ERASING) {
         if (ReturnValue == 0xffffffff) {
@@ -804,7 +802,7 @@ RAMFUNC void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
  *-------------------------------------------------------------------------
  * Notice      :
  *""FUNC COMMENT END""*****************************************************/
-RAMFUNC void HAL_FLASH_OperationErrorCallback(uint32_t ReturnValue)
+void HAL_FLASH_OperationErrorCallback(uint32_t ReturnValue)
 {
     if ((s_status & DRVIFLX_ERASING) == DRVIFLX_ERASING) {
         s_erase_status = DRVIFLX_RES_NG;

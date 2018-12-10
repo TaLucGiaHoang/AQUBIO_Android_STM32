@@ -1,0 +1,227 @@
+/*
+ * VA-X 認証アプリ
+ *
+ * Copyright (C) 2018 Bionics co.,ltd.
+ *
+ * 変更:
+ * - 2018/01/23 Takuya Goto <goto-takuya@bionics-k.co.jp>: 新規作成
+ */
+
+// ソースの対になるヘッダ
+#include "aplauth.h"
+
+// 標準C
+
+// OS関係
+#include <kernel.h>
+#include <t_syslog.h>
+#include <t_stdlib.h>
+
+#include "syssvc/serial.h"
+#include "syssvc/syslog.h"
+#include "kernel_cfg.h"
+
+// その他ヘッダ
+#include "mdlauth.h"
+
+/*
+ * マクロ定義
+ */
+// デバッグログ
+#if 1
+#define DBGLOG0(msg)					syslog(LOG_NOTICE, "[APLAUTH]" msg)
+#define DBGLOG1(msg, arg1)				syslog(LOG_NOTICE, "[APLAUTH]" msg, arg1)
+#define DBGLOG2(msg, arg1, arg2)		syslog(LOG_NOTICE, "[APLAUTH]" msg, arg1, arg2)
+#define DBGLOG3(msg, arg1, arg2, arg3)	syslog(LOG_NOTICE, "[APLAUTH]" msg, arg1, arg2, arg3)
+#else
+#define DBGLOG0(msg)
+#define DBGLOG1(msg, arg1)
+#define DBGLOG2(msg, arg1, arg2)
+#define DBGLOG3(msg, arg1, arg2, arg3)
+#endif
+/*
+ * 内部関数
+ */
+static void mdlauth_callback(int event, intptr_t opt1, intptr_t opt2);
+
+/*
+ * 定数
+ */
+// イベントフラグ
+static const FLGPTN FLGPTN_MDLAUTH_INITIALIZE_COMPLETE =		(0x1 << 0);
+static const FLGPTN FLGPTN_MDLAUTH_PREPARE_COMPLETE =			(0x1 << 1);
+
+
+/*
+ * 内部変数
+ */
+static APLEVT_EVENT_RECEIVER_FUNC_T s_receiver_func = NULL;
+
+/*
+ * 共通初期化API(APLEVT_INITIALIZE_FUNC_T)
+ *
+ * 初期化時に上位アプリから呼ばれる
+ */
+int32_t aplauth_initialize(APLEVT_EVENT_RECEIVER_FUNC_T receiver_func)
+{
+    assert(receiver_func);
+    assert(!s_receiver_func);
+
+    s_receiver_func = receiver_func;
+
+    // タスクを起動
+    ER er = act_tsk(TSK_APLAUTH);
+    assert(er == E_OK);
+
+    return 0;
+}
+
+/*
+ * 共通イベント受信API(APLEVT_EVENT_RECEIVER_FUNC_T)
+ *
+ * 他アプリからのイベントを受け取る
+ */
+int32_t aplauth_event(APLEVT_EVENT_T* event)
+{
+    assert(event);
+
+    ER ercd = E_OK;
+
+    switch (event->code) {
+    case APLEVT_AUTH_PREPARE_REQ:
+    case APLEVT_REGISTRATION_PREPARE_REQ:
+        /* キューイング */
+        ercd = aplevt_queue_event(DTQ_APLAUTH, event, 0);
+        assert(ercd == E_OK);
+        break;
+    default:
+        /* キューイング */
+        ercd = aplevt_queue_event(DTQ_APLAUTH, event, 0);
+        assert(ercd == E_OK);
+        //assert(false);
+        break;
+    }
+
+    return 0;
+}
+
+/*
+ * タスク
+ */
+void aplauth_task(intptr_t exinf)
+{
+	DBGLOG1("aplauth_task() starts (exinf = %d).", (int_t) exinf);
+
+    FLGPTN flgptn = 0;
+    ER ercd = E_OK;
+
+    // 認証ミドルを初期化
+    DBGLOG0("call mdlauth_initialize()");
+    mdlauth_initialize(mdlauth_callback);
+    ercd = twai_flg(FLG_APLAUTH, FLGPTN_MDLAUTH_INITIALIZE_COMPLETE, TWF_ANDW, &flgptn, -1);
+    DBGLOG0("complete mdlauth_initialize()");
+
+    // 認証準備
+    DBGLOG0("call mdlauth_prepare()");
+    mdlauth_prepare(MDLAUTH_MODE_AUTH, 0);
+    ercd = twai_flg(FLG_APLAUTH, FLGPTN_MDLAUTH_PREPARE_COMPLETE, TWF_ANDW, &flgptn, -1);
+    aplevt_send_event(APLEVT_AUTH_READY, 0, NULL, s_receiver_func);
+    DBGLOG0("complete mdlauth_prepare()");
+
+    while (true) {
+        APLEVT_EVENT_T* event = NULL;
+        ER er_rcv = aplevt_receive_event(DTQ_APLAUTH, &event, TMO_FEVR);
+        assert(er_rcv == E_OK);
+        DBGLOG1("aplauth_task() received: (msg = %d).", event->code);
+
+        switch (event->code) {
+        case APLEVT_AUTH_PREPARE_REQ:
+            mdlauth_cancel();
+            mdlauth_prepare(MDLAUTH_MODE_AUTH, 0);
+            break;
+        case APLEVT_REGISTRATION_PREPARE_REQ:
+        case APLEVT_VAREG_REQ:
+            mdlauth_cancel();
+            mdlauth_prepare(MDLAUTH_MODE_REGISTRATION, event->extra_data.reg_prep_req.index);
+            break;
+        case APLEVT_AUTH_PROCESSING:
+            mdlauth_auth();
+            break;
+        case APLEVT_AUTH_CANCEL:
+            mdlauth_cancel();
+            break;
+        default:
+            assert(false);
+            break;
+        }
+
+        aplevt_return_event(event);
+        event = NULL;
+    }
+
+    // 
+
+}
+
+/*
+ * 内部関数
+ */
+
+/*
+ * 認証コールバック
+ */
+void mdlauth_callback(int event, intptr_t opt1, intptr_t opt2)
+{
+    
+    ER er = 0;
+
+    switch (event) {
+    case MDLAUTH_EVT_INITIALIZE_COMPLETE:	// 初期化完了
+        DBGLOG0("callback: MDLAUTH_EVT_INITIALIZE_COMPLETE");
+        er = set_flg(FLG_APLAUTH, FLGPTN_MDLAUTH_INITIALIZE_COMPLETE);
+        assert(er == E_OK);
+        break;
+
+    case MDLAUTH_EVT_PREPARE_COMPLETE:		// 認証準備完了
+        DBGLOG0("callback: MDLAUTH_EVT_PREPARE_COMPLETE");
+        er = set_flg(FLG_APLAUTH, FLGPTN_MDLAUTH_PREPARE_COMPLETE);
+        aplevt_send_event(APLEVT_AUTH_READY, 0, NULL, s_receiver_func);
+        assert(er == E_OK);
+        break;
+
+    case MDLAUTH_EVT_TS_DETECT:				// 生体センサー検出
+        DBGLOG0("callback: MDLAUTH_EVT_TS_DETECT");
+        aplevt_send_event(APLEVT_AUTH_PROCESSING, 0, NULL, s_receiver_func);
+//        aplevt_send_event(APLEVT_AUTH_PROCESSING, 0, NULL, aplauth_event);
+        break;
+
+    case MDLAUTH_EVT_CAPTURE_COMPLETE:		// カメラ撮影完了
+        DBGLOG0("callback: MDLAUTH_EVT_CAPTURE_COMPLETE");
+        break;
+
+    case MDLAUTH_EVT_AUTH_COMPLETE:			// 認証完了
+        DBGLOG0("callback: MDLAUTH_EVT_AUTH_COMPLETE");
+        if(opt1 == 0){
+            aplevt_send_event(APLEVT_AUTH_COMPLETE, opt1, NULL, s_receiver_func);
+        }else if(opt1 == -1){
+            aplevt_send_event(APLEVT_AUTH_ERROR, opt1, NULL, s_receiver_func);
+        }
+        break;
+
+    case MDLAUTH_EVT_REGISTRATION_COMPLETE:	// 登録完了
+        DBGLOG0("callback: MDLAUTH_EVT_REGISTRATION_COMPLETE");
+        aplevt_send_event(APLEVT_REGISTRATION_COMPLETE, opt1, NULL, s_receiver_func);
+        break;
+
+    case MDLAUTH_EVT_AUTH_RETRYING:			// 認証リトライ
+        DBGLOG0("callback: MDLAUTH_EVT_AUTH_RETRYING");
+        aplevt_send_event(APLEVT_AUTH_RETRYING, opt1, NULL, s_receiver_func);
+        break;
+
+    default:
+        break;
+    }
+
+    return;
+}
+

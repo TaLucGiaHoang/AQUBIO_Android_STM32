@@ -26,7 +26,6 @@
 /*
  * マクロ定義
  */
-#define RAMFUNC __attribute__ ((section(".ramfunc")))
 // デバッグログ
 #if 0
 #define DBGLOG0(msg)					syslog(LOG_NOTICE, "[DRVQFLX]" msg)
@@ -421,7 +420,7 @@ void drvqflx_initialize()
 /*
  * 読み込み
  */
-RAMFUNC void drvqflx_read(void* dest, intptr_t src, size_t length)
+void drvqflx_read(void* dest, intptr_t src, size_t length)
 {
 //    DBGLOG0("drvqflx_read");
 
@@ -564,21 +563,31 @@ void qspi_flash_configure()
 {
     DBGLOG0("qspi_flash_configure");
 
-     // BUSYクリア待ち
-//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+    // BUSYクリア待ち
+   qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
 
-    // Configuration Register の [1]IOC ビットをセット
-    qspi_transfer(&FLASH_CMD_WREN, NULL);	// Write Enable
-//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
-    qspi_transfer(&FLASH_CMD_WRSR,
-                  &(QSPI_TRANSFER_DATA_T){.mcuaddr = (uint8_t[]){0x00, 0x02}, .length = 2});
-//    qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+   // リセットコマンド
+   qspi_transfer(&FLASH_CMD_RSTEN, NULL);
+   qspi_transfer(&FLASH_CMD_RST, NULL);
+   qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+
+   // Configuration Register の [1]IOC ビットをセット
+   qspi_transfer(&FLASH_CMD_WREN, NULL);   // Write Enable
+   qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
+   qspi_transfer(&FLASH_CMD_WRSR,
+                 &(QSPI_TRANSFER_DATA_T){.mcuaddr = (uint8_t[]){0x00, 0x02}, .length = 2});
+   qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
+
+   // 書込み保護を全て解除(Global Block-Protection Unlock)
+   qspi_transfer(&FLASH_CMD_WREN, NULL);   // Write Enable
+   qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY | FLASH_STATUS_MASK_WEL, FLASH_STATUS_MASK_WEL);
+   qspi_transfer(&FLASH_CMD_ULBPR, NULL);
+   qspi_wait_flash_status(FLASH_STATUS_MASK_BUSY, 0);
 }
 
 /*
  * SPIフラッシュ読込み
  */
-__attribute__ ((section(".ramfunc")))
 int qspi_flash_read(void* dest, intptr_t flash_addr, size_t length)
 {
     assert(dest);
@@ -730,7 +739,6 @@ int qspi_config(const QSPI_TRANSFER_CONFIG_T* config)
 /*
  * QSPIの転送開始
  */
-__attribute__ ((section(".ramfunc")))
 int qspi_transfer(const QSPI_TRANSFER_CONFIG_T* config, const QSPI_TRANSFER_DATA_T* data)
 {
     assert(config);
@@ -808,8 +816,11 @@ int qspi_transfer(const QSPI_TRANSFER_CONFIG_T* config, const QSPI_TRANSFER_DATA
             uint32_t* end;
             tmp = data->mcuaddr;
             end = data->mcuaddr + data->length;
-            drvcmn_setreg32(QSPI_R_BASE + 0x20 /* QUADSPI_DR */, 0, ~(uint32_t) 0, *(uint32_t*) tmp);
-            tmp++;
+
+            while (tmp < end) {
+                drvcmn_setreg32(QSPI_R_BASE + 0x20 /* QUADSPI_DR */, 0, ~(uint32_t) 0, *(uint32_t*) tmp);
+                tmp++;
+            }
         } else {
             assert(false);
         }
@@ -835,7 +846,6 @@ void dma_isr_callback()
 
 
 // フラッシュのステータスポーリング
-__attribute__ ((section(".ramfunc")))
 void qspi_wait_flash_status(uint32_t mask, uint32_t match)
 {
     uint32_t sr = 1;

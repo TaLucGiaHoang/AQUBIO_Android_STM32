@@ -48,7 +48,7 @@
 #  1つのソースファイルから複数のオブジェクトファイルを生成するように作
 #  成されたソースファイルのリスト
 #
-KERNEL_FCSRCS = startup.c task.c wait.c time_event.c \
+KERNEL_FCSRCS = startup.c bootloader.c drvqflx.c drviflx.c drviflx_hal.c drviflx_hal_ex.c task.c wait.c time_event.c \
 				task_manage.c task_refer.c task_sync.c task_except.c \
 				semaphore.c eventflag.c dataqueue.c pridataq.c mailbox.c \
 				mempfix.c time_manage.c cyclic.c alarm.c \

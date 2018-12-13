@@ -5,7 +5,7 @@
 /*
  *		cfg1_out.cをリンクするために必要なスタブの定義
  */
-void sta_ker(void){}
+void boot_load(void){}
 
 /* 
  *  オフセットファイルを生成するための定義 

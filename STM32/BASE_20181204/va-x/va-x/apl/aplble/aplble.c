@@ -61,6 +61,11 @@ typedef struct {
     uint32_t name[32];
 } REGINFO_T;
 
+typedef struct {
+    uint8_t size;
+    uint16_t command;
+    uint8_t* body;
+} APLBLE_COMMAND_DATA_T;
 
 /*
  * 定数
@@ -71,6 +76,8 @@ static const FLGPTN FLGPTN_MDLBLE_DATA_RECEIVED =		(0x1 << 2);
 static const FLGPTN FLGPTN_MDLBLE_SEND_COMPLETE =		(0x1 << 3);
 static const FLGPTN FLGPTN_MDLSTRG_REQUEST_COMPLETE =	(0x1 << 4);
 static const FLGPTN FLGPTN_MDLBLE_RESTART_COMPLETE =	(0x1 << 5);
+
+static const uint8_t const BLE_PIN[] = {0x31, 0x32, 0x33, 0x34};
 
 static const uint8_t const TEST_KEY_PUB[] = {
     0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
@@ -143,6 +150,30 @@ static const TEST_CARD_DATA_T const TEST_CARD_DATA[TEST_CARD_DATA_NUM] = {
 #define CARD_ENTRY_None	0x7FFF	// カード登録状態
 #define CARD_ENTRY		0x3FFF	// カード登録状態
 
+// Command list
+#define APLBLE_CMD_AUTHENTICATE        (0x3030U) // "00"
+#define APLBLE_CMD_SET_DB_WIFI         (0x3131U) // "11"
+#define APLBLE_CMD_SET_PHONE_WIFI      (0x3132U) // "12"
+#define APLBLE_CMD_SET_DEVICE_INFO     (0x3133U) // "13"
+#define APLBLE_CMD_SET_COUNTER_INFO    (0x3134U) // "14"
+#define APLBLE_CMD_SET_ICCARD_INFO1    (0x3135U) // "15"
+#define APLBLE_CMD_UPDATE_FIRMWARE     (0x3145U) // "1E"
+#define APLBLE_CMD_INITILIZE_DATA      (0x3146U) // "1F"
+
+#define APLBLE_CMD_GET_VERSION         (0x3231U) // "21"
+#define APLBLE_CMD_GET_SERIAL          (0x3232U) // "22"
+#define APLBLE_CMD_GET_BLE_MAC         (0x3233U) // "23"
+#define APLBLE_CMD_GET_ROOM_INFO       (0x3234U) // "24"
+#define APLBLE_CMD_GET_DB_WIFI_INFO    (0x3235U) // "25"
+#define APLBLE_CMD_GET_ERROR_LOG       (0x3236U) // "26"
+#define APLBLE_CMD_GET_ICCARD_INFO1    (0x3237U) // "27"
+#define APLBLE_CMD_GET_ICCARD_INFO2    (0x3238U) // "28"
+#define APLBLE_CMD_GET_PARAMETERS      (0x3239U) // "29"
+#define APLBLE_CMD_GET_DIAGNOSTIC      (0x3241U) // "2A"
+
+#define APLBLE_CMD_CHECK_ICCARD1_SIZE  (0x3337U) // "37"
+#define APLBLE_CMD_CHECK_ICCARD2_SIZE  (0x3338U) // "38"
+
 // 接続状態
 enum {
     SESSION_IDLE = 0,
@@ -165,11 +196,15 @@ static const uint32_t PERMISSION_DEPAIRING =	(0x1 << 1);
  * 内部関数プロトタイプ
  */
 static void mdlble_callback(int event, intptr_t opt1, intptr_t opt2);
+static void aplble_authenticate(const APLBLE_COMMAND_DATA_T* data);
+static void aplble_set_phone_wifi(const APLBLE_COMMAND_DATA_T* data);
+static void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data);
 static void aplble_process_data_1(const MDLBLE_DATA_T* data);
 static int aplble_process_data_1_05(uint8_t* resp_buf, const uint8_t* data, size_t data_len);
 static int aplble_process_data_1_06(uint8_t* resp_buf, const uint8_t* data, size_t data_len);
 static void aplble_process_data_2(const MDLBLE_DATA_T* data);
 static void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2);
+static void aplble_process_command(const MDLBLE_DATA_T* data);
 
 /*
  * 内部変数
@@ -177,6 +212,8 @@ static void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2);
 static int ble_process = true;
 // イベント送信先
 static APLEVT_EVENT_RECEIVER_FUNC_T s_event_dest = NULL;
+static uint8_t s_ssid[33];
+static uint8_t s_password[33];
 
 // コンテキスト
 static struct {
@@ -243,6 +280,8 @@ int32_t aplble_initialize(APLEVT_EVENT_RECEIVER_FUNC_T receiver_func)
     er = act_tsk(TSK_APLBLE_RX);
     assert(er == E_OK);
 
+    memset(s_ssid, 0, sizeof(s_ssid));
+    memset(s_password, 0, sizeof(s_password));
 
     return 0;
 }
@@ -454,6 +493,9 @@ void aplble_rx_task(intptr_t exinf)
         case 2:	// 本体制御
             aplble_process_data_2(data);
             break;
+        case MDLBLE_SERVICE_COMMAND:
+            aplble_process_command(data);
+            break;
         default:
             assert(false);
             break;
@@ -505,6 +547,54 @@ void mdlble_callback(int event, intptr_t opt1, intptr_t opt2)
         break;
     default:
         break;
+    }
+}
+
+void aplble_authenticate(const APLBLE_COMMAND_DATA_T* data)
+{
+    if ((data->size == sizeof(BLE_PIN)) && (0 == memcmp(data->body, BLE_PIN, sizeof(BLE_PIN)))) {
+        clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+        mdlble_send2(data->command, (uint8_t*)"OK", 2);
+        FLGPTN flgptn = 0;
+        ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+        assert(er == E_OK);
+        DBGLOG0("aplble_authenticate OK");
+    } else {
+        clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+        mdlble_send2(data->command, (uint8_t*)"NG", 2);
+        FLGPTN flgptn = 0;
+        ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+        assert(er == E_OK);
+        DBGLOG0("aplble_authenticate FAIL");
+    }
+}
+
+void aplble_set_phone_wifi(const APLBLE_COMMAND_DATA_T* data)
+{
+    DBGLOG0("aplble_set_phone_wifi");
+    memcpy(s_ssid, &data->body[0], 32);
+    memcpy(s_password, &data->body[32], 32);
+    DBGLOG2("SSID: %s, password: %s", s_ssid, s_password);
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+    mdlble_send2(data->command, (uint8_t*)"OK", 2);
+    FLGPTN flgptn = 0;
+    ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+    assert(er == E_OK);
+}
+
+void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
+{
+    DBGLOG0("aplble_update_firmware");
+    FLGPTN flgptn = 0;
+    ER er = E_OK;
+
+    uint32_t firmware_size = 0;
+    int ret = 0;
+    if (s_ssid[0] == 0) {
+        ret = 0;
+        DBGLOG0("Wifi SSID has not been configured");
+    } else {
+        ret = 1;
     }
 }
 
@@ -1244,4 +1334,28 @@ void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2)
 
     s_context.strg_result.opt1 = opt1;
     s_context.strg_result.opt2 = opt2;
+}
+
+void aplble_process_command(const MDLBLE_DATA_T* data)
+{
+    APLBLE_COMMAND_DATA_T aplble_command = {0};
+    aplble_command.command = (data->body[0] << 8) | data->body[1];
+    aplble_command.size = (uint8_t)(data->length - 2);
+    aplble_command.body = (uint8_t*)&data->body[2];
+    DBGLOG2("Command received %04x, size %d", aplble_command.command, aplble_command.size);
+
+    switch (aplble_command.command) {
+    case APLBLE_CMD_AUTHENTICATE:
+        aplble_authenticate(&aplble_command);
+        break;
+    case APLBLE_CMD_SET_PHONE_WIFI:
+        aplble_set_phone_wifi(&aplble_command);
+        break;
+    case APLBLE_CMD_UPDATE_FIRMWARE:
+        aplble_update_firmware(&aplble_command);
+        break;
+    default:
+        assert(false);
+        break;
+    }
 }

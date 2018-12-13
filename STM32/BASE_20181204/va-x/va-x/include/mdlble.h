@@ -41,6 +41,10 @@ enum {
 #define MDLBLE_MAX_DATA_LEN	4096
 #define MDLBLE_NUM_DATA_MPF	2
 
+// Service code
+#define MDLBLE_SERVICE_COMMAND  (0x40) // '@'
+#define MDLBLE_SERVICE_RESPONSE (0x2A) // '*'
+
 /*
  * 型定義
  */
@@ -73,6 +77,7 @@ void mdlble_restart();
 
 // 送信
 void mdlble_send(uint8_t service, const uint8_t* data, size_t length);
+void mdlble_send2(uint16_t command, const uint8_t* data, size_t length);
 
 // 受信バッファ返却
 void mdlble_return_buffer(const uint8_t* data);

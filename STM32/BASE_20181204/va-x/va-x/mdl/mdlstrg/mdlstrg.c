@@ -235,6 +235,15 @@ static bool_t read_device_id(BNVA_DEVICE_ID_T* dest);
 // 機器識別情報書込み
 static void write_device_id(const BNVA_DEVICE_ID_T* device_id);
 
+//////////////////////
+// Store Program memory
+static void init_store_program();
+static bool_t read_store_program(void* data, intptr_t address, size_t size, int index);
+static void write_store_program(void* data, intptr_t address, size_t size, int index);
+static void delete_store_program(size_t size, int index);
+static bool_t exists_store_program(size_t* size, int index);
+//////////////////////
+
 // 識別コードのフラグ比較
 bool_t compare_id_code_flg(intptr_t addr, uint16_t flg);
 
@@ -403,6 +412,7 @@ enum {
     FLASH_AREA_DROOM_CARD,          // D-roomカード
     FLASH_AREA_IDCODE,              // 識別コード
     FLASH_AREA_WIFI_PARAM,          // WIFI接続情報
+    FLASH_AREA_STORE_PROGRAM,       // Store Program
     FLASH_AREA_OPE_LOG,             // 操作ログ
     FLASH_AREA_ERR_LOG,             // エラーログ
     // D-roomカード
@@ -451,6 +461,7 @@ static const FLASH_AREA_DEF_T FLASH_AREA_DEFS[] = {
     { FLASH_AREA_DROOM_CARD,        0x121000,   4096,       1,          STRATEGY_NONE,                  0,                              0,      },
     { FLASH_AREA_IDCODE,            0x122000,   4096,       2,          STRATEGY_NONE,                  sizeof(MDLSTRG_DATA_IDCODE_T),    0,      },
     { FLASH_AREA_WIFI_PARAM,        0x124000,   4096,       1,          STRATEGY_NONE,                  0,                              0,      },
+    { FLASH_AREA_STORE_PROGRAM,     0x130000,   720896,     1,          STRATEGY_1DATA_1LEB_INDEXED,    0,                              0,      }, // Store Program
     { FLASH_AREA_OPE_LOG,           0x1E0000,   4096,       16,         STRATEGY_INCREMENTAL_FIXED,     0/*sizeof(FLASH_DATA_OPE_LOG_T)*/,   0,      },
     { FLASH_AREA_ERR_LOG,           0x1F0000,   4096,       16,         STRATEGY_INCREMENTAL_FIXED,     0/*sizeof(FLASH_DATA_ERR_LOG_T)*/,   0,      },
     // 2M: -0x1FFFFF
@@ -535,6 +546,11 @@ void mdlstrg_task(intptr_t exinf)
 
             // フラッシュドライバ初期化
             drvflx_initialize(drvflx_callback);
+
+            ER er = twai_flg(FLG_MDLSTRG, FLGPTN_DRVFLX_INITIALIZE_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 3000);
+            assert(er == E_OK);
+
+            init_store_program(0);
 
             blk->callback(MDLSTRG_EVT_INITIALIZE_COMPLETE, 0, 0);
             s_context.state = STATE_READY;
@@ -882,8 +898,29 @@ void mdlstrg_task(intptr_t exinf)
                 }
                 break;
             }
-                
-                
+            ////////////////////////////////
+            case MDLSTRG_DATA_TYPE_STORE_PROGRAM: {	// Store program
+                DBGLOG0("MDLSTRG_DATA_TYPE_STORE_PROGRAM.");
+                switch (blk->request.request_type) {
+                case MDLSTRG_REQ_TYPE_READ:
+                    read_store_program((void*)blk->request.data, blk->request.opt2, blk->request.size, blk->request.opt1);
+                    break;
+                case MDLSTRG_REQ_TYPE_WRITE:
+                    write_store_program((void*)blk->request.data, blk->request.opt2, blk->request.size, blk->request.opt1);
+                    break;
+                case MDLSTRG_REQ_TYPE_DELETE:
+                    delete_store_program(blk->request.size, blk->request.opt1);
+                    break;
+                case MDLSTRG_REQ_TYPE_EXISTS:
+                    opt1 = exists_store_program((size_t*)blk->request.opt2, blk->request.opt1);
+                    break;
+                default:
+                    assert(false);
+                    break;
+                }
+                break;
+            }
+            ////////////////////////////////
             default:
                 assert(false);
                 break;
@@ -3093,3 +3130,128 @@ void write_room_sts(const MDLSTRG_DATA_ROOM_STS_T* room_data)
     return;
 }
 
+////////////////////////
+
+void init_store_program(int index)
+{
+    bool_t found = false;
+    intptr_t db_addr = 0;
+    size_t block_size = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Get write destination
+    found = db_get_data_addr_1d1li(&db_addr, &block_size, &cursor, &(FLASH_AREA_DEFS[FLASH_AREA_STORE_PROGRAM]), index, SEARCH_FOR_WRITE_DEST);
+    assert(found);
+
+    // Erase Store Program Area if db_state is BLOCK_STATE_INVALID
+    if (cursor.db_state == BLOCK_STATE_INVALID) {
+        delete_store_program(0, index);
+    }
+}
+
+/*
+ * Read from Store Program memory
+ */
+bool_t read_store_program(void* data, intptr_t address, size_t size, int index)
+{
+    assert(data);
+    assert(index >= 0 && index < 176);
+
+    bool_t found = false;
+    intptr_t db_addr = 0;
+    size_t block_size = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Get Store Program address
+    found = db_get_data_addr(&db_addr, &block_size, &cursor, FLASH_AREA_STORE_PROGRAM, index);
+    if (!found) {
+        goto end;
+    }
+
+    // Read Store Program data
+    flash_read(data, db_addr + address, size);
+
+end:
+    return found;
+}
+/*
+ * Write to Store Program memory
+ */
+void write_store_program(void* data, intptr_t address, size_t size, int index)
+{
+    assert(data);
+    assert(index >= 0 && index < 176);
+
+    bool_t found = false;
+    intptr_t db_addr = 0;
+    size_t block_size = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Get write destination
+    found = db_get_data_addr_1d1li(&db_addr, &block_size, &cursor, &(FLASH_AREA_DEFS[FLASH_AREA_STORE_PROGRAM]), index, SEARCH_FOR_WRITE_DEST);
+    assert(found);
+
+    // Write to Store Program to flash
+    flash_write(db_addr + address, data, size);
+}
+
+/*
+ * Delete existing Store Program
+ */
+void delete_store_program(size_t size, int index)
+{
+    bool_t found = false;
+    intptr_t db_addr = 0;
+    size_t block_size = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Get Store Program address
+    found = db_get_data_addr_1d1li(&db_addr, &block_size, &cursor, &(FLASH_AREA_DEFS[FLASH_AREA_STORE_PROGRAM]), index, SEARCH_FOR_WRITE_DEST);
+    //found = db_get_data_addr(&addr, &block_size, &cursor, FLASH_AREA_STORE_PROGRAM, index);
+    if (found) {
+        if (size == 0) {
+            intptr_t leb_addr = cursor.area_def->addr + (cursor.area_def->leb_size * index);
+            size_t erase_size = size + sizeof(LEB_HEADER_T) + sizeof(DB_HEADER_T);
+            erase_size = cursor.area_def->leb_size;
+            DBGLOG2("Erasing %08x, size %d", leb_addr, erase_size);
+            flash_erase(leb_addr, erase_size);
+//            db_set_invalid(&cursor);
+        } else {
+            intptr_t leb_addr = cursor.area_def->addr + (cursor.area_def->leb_size * index);
+//            size_t erase_size = size + sizeof(LEB_HEADER_T) + sizeof(DB_HEADER_T);
+//            erase_size = (((erase_size - 1) / DRVFLX_ERASE_BLOCK_SIZE) + 1) * DRVFLX_ERASE_BLOCK_SIZE;
+//            DBGLOG2("Erasing %08x, size %d", leb_addr, erase_size);
+//            flash_erase(leb_addr, erase_size);
+
+            // Write LEB header
+            LEB_HEADER_T leb_header = {0};
+            leb_header.leb_state = BLOCK_STATE_EMPTY;
+            flash_write(leb_addr, &leb_header, sizeof(LEB_HEADER_T));
+
+            // Write DB header
+            DB_HEADER_T header = {0};
+            header.data_id = index;
+            header.data_len = size;
+            header.db_state = BLOCK_STATE_VALID;
+            flash_write(cursor.db_addr, &(header), sizeof(header));
+        }
+    }
+
+    return;
+}
+
+/*
+ * Check existence of Store Program
+ */
+bool_t exists_store_program(size_t* size, int index)
+{
+    bool_t found = false;
+    intptr_t addr = 0;
+    DB_CURSOR_T cursor = {0};
+
+    // Check if registered
+    found = db_get_data_addr(&addr, size, &cursor, FLASH_AREA_STORE_PROGRAM, index);
+
+    return found;
+}
+///////////////////////

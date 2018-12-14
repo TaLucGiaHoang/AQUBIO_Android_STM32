@@ -19,6 +19,7 @@
 /* エラー種別 */
 #define DRVWIFI_ERROR_NONE			0
 #define DRVWIFI_ERROR_TIMEOUT		1
+#define DRVWIFI_ERROR_CANCELLED     2
 
 #define DRVWIFI_MAX_ESSID_LEN		32	// ESSID最大長
 #define DRVWIFI_MAX_PASSPHRASE_LEN	64	// パスフレーズ最大長
@@ -28,7 +29,6 @@
 #define DRVWIFI_MAX_PATH_LEN		240	// パス最大長
 #define DRVWIFI_MAX_BODY_LEN		256	// Body最大長
 #define DRVWIFI_MAX_IPADR_LEN		48		//IP adress最大長（v4/v6）
-
 
 /* メモリプールブロック長(内部用) */
 #define DRVWIFI_MPFBLK_SIZE		16
@@ -75,6 +75,12 @@ typedef struct {
     size_t ipadr_len;
 } DRVWIFI_PING;
 
+typedef struct {
+    uint8_t* ip_address;
+	size_t ipadr_len; // DRVWIFI_MAX_IPADR_LEN
+    uint16_t port;
+} DRVWIFI_TCP_CONFIG;
+
 /*
  * 定数
  */
@@ -83,13 +89,23 @@ enum {
     DRVWIFI_EVT_NONE = 0,
     DRVWIFI_EVT_INITIALIZE_COMPLETE,
     DRVWIFI_EVT_POWER_OFF_COMPLETE,
+    // DRVWIFI_EVT_DEVICE_AVAILABLE_COMPLETE,
+    // DRVWIFI_EVT_FACTORY_RESET_COMPLETE,
+    // DRVWIFI_EVT_RESET_COMPLETE,
+    // DRVWIFI_EVT_AP_SCAN_COMPLETE,
     DRVWIFI_EVT_AP_CONNECT_COMPLETE,
     DRVWIFI_EVT_AP_CONNECT_WPS_COMPLETE,
     DRVWIFI_EVT_AP_DISCONNECTED,
     DRVWIFI_EVT_HTTP_CONNECT_COMPLETE,
+    DRVWIFI_EVT_HTTP_GET_COMPLETE,
     DRVWIFI_EVT_HTTP_POST_COMPLETE,
     DRVWIFI_EVT_HTTP_DISCONNECT_COMPLETE,
     DRVWIFI_EVT_PING_COMPLETE,
+    DRVWIFI_EVT_TCP_CONNECT_COMPLETE,
+    DRVWIFI_EVT_TCP_SEND_COMPLETE,
+    DRVWIFI_EVT_TCP_RECEIVE_COMPLETE,
+    DRVWIFI_EVT_TCP_SERVER_COMPLETE,
+    DRVWIFI_EVT_DISCONNECTED,
 };
 
 // wpa ver
@@ -98,6 +114,7 @@ enum {
     DRVWIFI_SCHEMA_HTTPS,
 };
 
+// セキュリティ
 // wpa ver
 enum {
     DRVWIFI_SECURITY_NONE = 0,
@@ -111,6 +128,13 @@ enum {
     DRVWIFI_SECURITY_CCMP,
 };
 
+enum {
+    DRVWIFI_RESULT_OK = 0,
+    DRVWIFI_RESULT_ERROR,
+    DRVWIFI_RESULT_BUSY,
+    DRVWIFI_RESULT_NO_CARRIER,
+    DRVWIFI_RESULT_CONNECT,
+};
 
 
 /*
@@ -122,6 +146,15 @@ void drvwifi_peripheral_initialize(void);
 
 /* ドライバ初期化 */
 void drvwifi_initialize(DRVWIFI_CALLBACK_T callback);
+
+/* wifiモジュールの通信確認 */
+void drvwifi_device_available();
+
+/* wifiモジュールの出荷初期化 */
+void drvwifi_factory_reset();
+
+/* wifiモジュールのリセット */
+void drvwifi_software_reset();
 
 /* wifiモジュールのリセット */
 void drvwifi_start(DRVWIFI_CALLBACK_T callback);
@@ -141,14 +174,22 @@ void drvwifi_ap_disconnect(DRVWIFI_CALLBACK_T callback);
 /* HTTPS 接続 */
 void drvwifi_https_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_HTTPS_CONFIG* httpcfg);
 
+/* HTTPS GET */
+void drvwifi_https_get();
+
 /* HTTPS POST */
 void drvwifi_https_post(DRVWIFI_CALLBACK_T callback, DRVWIFI_HTTPS_REQ* req);
 
 /* HTTPS 切断 */
 void drvwifi_https_disconnect(DRVWIFI_CALLBACK_T callback);
 
+
 /* PING */
 void drvwifi_ping(DRVWIFI_CALLBACK_T callback, DRVWIFI_PING* ping);
+
+void drvwifi_send(const uint8_t* data, size_t size);
+
+void drvwifi_receive(uint8_t* data, size_t size);
 
 /*
  * 内部関数

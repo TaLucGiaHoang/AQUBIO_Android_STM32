@@ -28,13 +28,14 @@
 #include "mdlstrg.h"
 #include "mdlstrg_data.h"
 #include "drvrng.h"
+#include "drvwifi.h"
 #include "aplicc.h"
 #include "aplui.h"
 #include "aplauth.h"
 #include "aplicc.h"
 
 // デバッグログ
-#if 0
+#if 1
 #define DBGLOG0(msg)					syslog(LOG_NOTICE, "[APLBLE]" msg)
 #define DBGLOG1(msg, arg1)				syslog(LOG_NOTICE, "[APLBLE]" msg, arg1)
 #define DBGLOG2(msg, arg1, arg2)		syslog(LOG_NOTICE, "[APLBLE]" msg, arg1, arg2)
@@ -48,6 +49,11 @@
 
 //#define TEST_USE_DUMMY_CARD_DATA
 #define TEST_NO_VALIDATE_USER_SIGNATURE	// 【暫定対応】ユーザー鍵の検証をしない
+#define SERVER_IP "192.168.43.1"
+#define SERVER_PORT 5000
+#define MAX_TRY 5 // Try to connect to TCP server 5 times
+
+#define RECEIVE_BUFFER_SIZE 4096
 
 /*
  * 型
@@ -61,6 +67,11 @@ typedef struct {
     uint32_t name[32];
 } REGINFO_T;
 
+typedef struct {
+    uint8_t size;
+    uint16_t command;
+    uint8_t* body;
+} APLBLE_COMMAND_DATA_T;
 
 /*
  * 定数
@@ -71,6 +82,15 @@ static const FLGPTN FLGPTN_MDLBLE_DATA_RECEIVED =		(0x1 << 2);
 static const FLGPTN FLGPTN_MDLBLE_SEND_COMPLETE =		(0x1 << 3);
 static const FLGPTN FLGPTN_MDLSTRG_REQUEST_COMPLETE =	(0x1 << 4);
 static const FLGPTN FLGPTN_MDLBLE_RESTART_COMPLETE =	(0x1 << 5);
+
+static const FLGPTN FLGPTN_DRVWIFI_INITIALIZE_COMPLETE  = (0x1 << 6);
+static const FLGPTN FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE  = (0x1 << 7);
+static const FLGPTN FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE = (0x1 << 8);
+static const FLGPTN FLGPTN_DRVWIFI_TCP_SEND_COMPLETE    = (0x1 << 9);
+static const FLGPTN FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE = (0x1 << 10);
+static const FLGPTN FLGPTN_DRVWIFI_TCP_SERVER_COMPLETE  = (0x1 << 11);
+
+static const uint8_t const BLE_PIN[] = {0x31, 0x32, 0x33, 0x34};
 
 static const uint8_t const TEST_KEY_PUB[] = {
     0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
@@ -143,6 +163,30 @@ static const TEST_CARD_DATA_T const TEST_CARD_DATA[TEST_CARD_DATA_NUM] = {
 #define CARD_ENTRY_None	0x7FFF	// カード登録状態
 #define CARD_ENTRY		0x3FFF	// カード登録状態
 
+// Command list
+#define APLBLE_CMD_AUTHENTICATE        (0x3030U) // "00"
+#define APLBLE_CMD_SET_DB_WIFI         (0x3131U) // "11"
+#define APLBLE_CMD_SET_PHONE_WIFI      (0x3132U) // "12"
+#define APLBLE_CMD_SET_DEVICE_INFO     (0x3133U) // "13"
+#define APLBLE_CMD_SET_COUNTER_INFO    (0x3134U) // "14"
+#define APLBLE_CMD_SET_ICCARD_INFO1    (0x3135U) // "15"
+#define APLBLE_CMD_UPDATE_FIRMWARE     (0x3145U) // "1E"
+#define APLBLE_CMD_INITILIZE_DATA      (0x3146U) // "1F"
+
+#define APLBLE_CMD_GET_VERSION         (0x3231U) // "21"
+#define APLBLE_CMD_GET_SERIAL          (0x3232U) // "22"
+#define APLBLE_CMD_GET_BLE_MAC         (0x3233U) // "23"
+#define APLBLE_CMD_GET_ROOM_INFO       (0x3234U) // "24"
+#define APLBLE_CMD_GET_DB_WIFI_INFO    (0x3235U) // "25"
+#define APLBLE_CMD_GET_ERROR_LOG       (0x3236U) // "26"
+#define APLBLE_CMD_GET_ICCARD_INFO1    (0x3237U) // "27"
+#define APLBLE_CMD_GET_ICCARD_INFO2    (0x3238U) // "28"
+#define APLBLE_CMD_GET_PARAMETERS      (0x3239U) // "29"
+#define APLBLE_CMD_GET_DIAGNOSTIC      (0x3241U) // "2A"
+
+#define APLBLE_CMD_CHECK_ICCARD1_SIZE  (0x3337U) // "37"
+#define APLBLE_CMD_CHECK_ICCARD2_SIZE  (0x3338U) // "38"
+
 // 接続状態
 enum {
     SESSION_IDLE = 0,
@@ -165,11 +209,19 @@ static const uint32_t PERMISSION_DEPAIRING =	(0x1 << 1);
  * 内部関数プロトタイプ
  */
 static void mdlble_callback(int event, intptr_t opt1, intptr_t opt2);
+static void aplble_authenticate(const APLBLE_COMMAND_DATA_T* data);
+static void aplble_set_phone_wifi(const APLBLE_COMMAND_DATA_T* data);
+static void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data);
+static void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, int index);
+static void mdlstrg_store_program_delete(size_t size, int index);
+
 static void aplble_process_data_1(const MDLBLE_DATA_T* data);
 static int aplble_process_data_1_05(uint8_t* resp_buf, const uint8_t* data, size_t data_len);
 static int aplble_process_data_1_06(uint8_t* resp_buf, const uint8_t* data, size_t data_len);
 static void aplble_process_data_2(const MDLBLE_DATA_T* data);
 static void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2);
+static void aplble_process_command(const MDLBLE_DATA_T* data);
+static void drvwifi_callback(int32_t evt, int32_t error, intptr_t opt);
 
 /*
  * 内部変数
@@ -177,6 +229,9 @@ static void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2);
 static int ble_process = true;
 // イベント送信先
 static APLEVT_EVENT_RECEIVER_FUNC_T s_event_dest = NULL;
+static uint8_t s_ssid[33];
+static uint8_t s_password[33];
+static uint8_t s_received_data[RECEIVE_BUFFER_SIZE];
 
 // コンテキスト
 static struct {
@@ -243,6 +298,8 @@ int32_t aplble_initialize(APLEVT_EVENT_RECEIVER_FUNC_T receiver_func)
     er = act_tsk(TSK_APLBLE_RX);
     assert(er == E_OK);
 
+    memset(s_ssid, 0, sizeof(s_ssid));
+    memset(s_password, 0, sizeof(s_password));
 
     return 0;
 }
@@ -330,7 +387,13 @@ void aplble_task(intptr_t exinf)
             mdlble_start();
             er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_START_COMPLETE, TWF_ANDW, &flgptn, 2000);
             assert(er == E_OK);
-            
+
+            // Wifi	//20181205Miyauchi VUP MERGE
+            clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_INITIALIZE_COMPLETE);
+            drvwifi_initialize(drvwifi_callback);
+            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_INITIALIZE_COMPLETE, TWF_ANDW, &flgptn, 2000);
+            assert(er == E_OK);
+
 //            extra_data.reg_prep_req.index = ble_process;
             aplui_dbg_led_pattern_off();        //ALL OFF
             aplui_dbg_set_led_pattern(0, 2);	//R
@@ -454,6 +517,9 @@ void aplble_rx_task(intptr_t exinf)
         case 2:	// 本体制御
             aplble_process_data_2(data);
             break;
+        case MDLBLE_SERVICE_COMMAND:
+            aplble_process_command(data);
+            break;
         default:
             assert(false);
             break;
@@ -505,6 +571,182 @@ void mdlble_callback(int event, intptr_t opt1, intptr_t opt2)
         break;
     default:
         break;
+    }
+}
+
+void aplble_authenticate(const APLBLE_COMMAND_DATA_T* data)
+{
+    if ((data->size == sizeof(BLE_PIN)) && (0 == memcmp(data->body, BLE_PIN, sizeof(BLE_PIN)))) {
+        clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+        mdlble_send2(data->command, (uint8_t*)"OK", 2);
+        FLGPTN flgptn = 0;
+        ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+        assert(er == E_OK);
+        DBGLOG0("aplble_authenticate OK");
+    } else {
+        clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+        mdlble_send2(data->command, (uint8_t*)"NG", 2);
+        FLGPTN flgptn = 0;
+        ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+        assert(er == E_OK);
+        DBGLOG0("aplble_authenticate FAIL");
+    }
+}
+
+void aplble_set_phone_wifi(const APLBLE_COMMAND_DATA_T* data)
+{
+    DBGLOG0("aplble_set_phone_wifi");
+    memcpy(s_ssid, &data->body[0], 32);
+    memcpy(s_password, &data->body[32], 32);
+    DBGLOG2("SSID: %s, password: %s", s_ssid, s_password);
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+    mdlble_send2(data->command, (uint8_t*)"OK", 2);
+    FLGPTN flgptn = 0;
+    ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 2000);
+    assert(er == E_OK);
+}
+
+void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
+{
+    DBGLOG0("aplble_update_firmware");
+    FLGPTN flgptn = 0;
+    ER er = E_OK;
+
+    uint32_t firmware_size = 0;
+    int ret = 0;
+    if (s_ssid[0] == 0) {
+        ret = 0;
+        DBGLOG0("Wifi SSID has not been configured");
+    } else {
+        ret = 1;
+
+        if (ret) {
+            DBGLOG0("AP Connect");
+            clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE);
+            drvwifi_ap_connect2(s_ssid, s_password);
+            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 30000);
+            assert(er == E_OK);
+            if (er != E_OK) {
+                ret = 0;
+            }
+        }
+
+        if (ret) {
+            clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+            mdlble_send2(data->command, (uint8_t*) "OK", 2);
+            FLGPTN flgptn = 0;
+            ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 5000);
+            assert(er == E_OK);
+        } else {
+            clr_flg(FLG_APLBLE, ~FLGPTN_MDLBLE_SEND_COMPLETE);
+            mdlble_send2(data->command, (uint8_t*) "NG", 2);
+            FLGPTN flgptn = 0;
+            ER er = twai_flg(FLG_APLBLE, FLGPTN_MDLBLE_SEND_COMPLETE, TWF_ANDW, &flgptn, 5000);
+            assert(er == E_OK);
+        }
+
+        if (ret) {
+            DBGLOG0("TCP connect");
+            clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE);
+            drvwifi_tcp_connect((uint8_t*)SERVER_IP, SERVER_PORT);
+            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 5000);
+            assert(er == E_OK);
+            if (er != E_OK) {
+                ret = 0;
+            }
+        }
+
+        if (ret) {
+            DBGLOG0("TCP send");
+            clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_SEND_COMPLETE);
+            drvwifi_send((uint8_t*)"OK", 2);
+            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
+            assert(er == E_OK);
+            if (er != E_OK) {
+                ret = 0;
+            }
+        }
+
+        if (ret) {
+            DBGLOG0("TCP Receive Updated message");
+            clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
+            drvwifi_receive(s_received_data, 6);
+            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, TMO_FEVR);
+            assert(er == E_OK);
+            if (er != E_OK) {
+                ret = 0;
+            } else {
+                s_received_data[6] = 0;
+                DBGLOG1("Wifi Recv: %s", s_received_data);
+                drvwifi_send((uint8_t*) "OK", 2);
+                er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
+                assert(er == E_OK);
+            }
+        }
+
+        if (ret) {
+            DBGLOG0("TCP Receive size");
+            clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
+            drvwifi_receive(s_received_data, 4);
+            er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, TMO_FEVR);
+            assert(er == E_OK);
+            if (er != E_OK) {
+                ret = 0;
+            } else {
+                firmware_size = (s_received_data[0] << 24) | (s_received_data[1] << 16) | (s_received_data[2] << 8) | (s_received_data[3]);
+                assert(firmware_size < 0x000C0000);
+                if (firmware_size >= 0x000C0000) {
+                    ret = 0;
+                    DBGLOG2("Firmware size ERROR: %d, %08x", firmware_size, firmware_size);
+                } else {
+                    DBGLOG2("Firmware size: %d, %08x", firmware_size, firmware_size);
+                    drvwifi_send((uint8_t*) "OK", 2);
+                    er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
+                    assert(er == E_OK);
+                }
+            }
+        }
+
+        if (ret) {
+            DBGLOG0("Start data transfer");
+            uint32_t start_address = 0;
+            uint32_t receive_length;
+            while (start_address < firmware_size) {
+                receive_length = firmware_size - start_address;
+                if (receive_length > RECEIVE_BUFFER_SIZE) {
+                    receive_length = RECEIVE_BUFFER_SIZE;
+                }
+                DBGLOG1("Wait for: (%d)", receive_length);
+                clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
+                drvwifi_receive(s_received_data, receive_length);
+                er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, 10000);
+                assert(er == E_OK);
+                if (er != E_OK) {
+                    ret = 0;
+                    break;
+                } else {
+                    DBGLOG1("TCP Receive: (%d)", receive_length);
+                    // Write receive buffer to QSPI flash
+                    mdlstrg_store_program_write(s_received_data, start_address, receive_length, 0);
+                    start_address += receive_length;
+
+                    drvwifi_send((uint8_t*) "OK", 2);
+                    er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
+                    assert(er == E_OK);
+                }
+            }
+
+            if (!ret) {
+                DBGLOG2("Firmware Received Error: (%d/%d)", start_address, firmware_size);
+
+                // TODO: Mark the new firmware as invalid to be erased next reboot
+            } else {
+                DBGLOG1("Firmware Received: (%d)", firmware_size);
+
+                // Store firmware size and set the new_firmware_flag
+                mdlstrg_store_program_delete(firmware_size, 0);
+            }
+        }
     }
 }
 
@@ -1029,7 +1271,7 @@ void aplble_process_data_2(const MDLBLE_DATA_T* data)
             cashe_meta[cs_indx].name_len = resp_buf[3];		// 名前長さ
             DBGLOG1("resp_buf[resp_size]: x= 0x%x", resp_buf[0]);
             DBGLOG1("cashe_meta[cs_indx].slotno: x= 0x%x", cashe_meta[cs_indx].slotno);
-            for(int y; y < 9; y++){
+            for(int y=0; y < 9; y++){
                 DBGLOG1("cashe_meta[cs_indx].name[y]: x= 0x%x", cashe_meta[cs_indx].name[y]);
             }
                 
@@ -1094,7 +1336,7 @@ void aplble_process_data_2(const MDLBLE_DATA_T* data)
                     s_context.cardstate.op = CARDOP_REGISTER;
                     s_context.cardstate.op_slot = other[0];
                     DBGLOG1("0d_cashe_meta[cs_indx].db_state: x= 0x%x", cashe_meta[cs_indx].db_state);
-                    for(int y; y < 9; y++){
+                    for(int y=0; y < 9; y++){
                         DBGLOG1("0d_cashe_meta[cs_indx].name[y]: x= 0x%x", cashe_meta[cs_indx].name[y]);
                     }
                     // 応答
@@ -1244,4 +1486,95 @@ void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2)
 
     s_context.strg_result.opt1 = opt1;
     s_context.strg_result.opt2 = opt2;
+}
+
+void aplble_process_command(const MDLBLE_DATA_T* data)
+{
+    APLBLE_COMMAND_DATA_T aplble_command = {0};
+    aplble_command.command = (data->body[0] << 8) | data->body[1];
+    aplble_command.size = (uint8_t)(data->length - 2);
+    aplble_command.body = (uint8_t*)&data->body[2];
+    DBGLOG2("Command received %04x, size %d", aplble_command.command, aplble_command.size);
+
+    switch (aplble_command.command) {
+    case APLBLE_CMD_AUTHENTICATE:
+        aplble_authenticate(&aplble_command);
+        break;
+    case APLBLE_CMD_SET_PHONE_WIFI:
+        aplble_set_phone_wifi(&aplble_command);
+        break;
+    case APLBLE_CMD_UPDATE_FIRMWARE:
+        aplble_update_firmware(&aplble_command);
+        break;
+    default:
+        assert(false);
+        break;
+    }
+}
+
+void drvwifi_callback(int32_t evt, int32_t error, intptr_t opt)
+{
+    DBGLOG3("drvwifi_callback(evt=%d,error=%d,opt=0x%08x)", evt, error, opt);
+
+    switch (evt) {
+    case DRVWIFI_EVT_INITIALIZE_COMPLETE:
+        set_flg(FLG_APLBLE, FLGPTN_DRVWIFI_INITIALIZE_COMPLETE);
+        break;
+    case DRVWIFI_EVT_AP_CONNECT_COMPLETE:
+        set_flg(FLG_APLBLE, FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE);
+        break;
+    case DRVWIFI_EVT_TCP_CONNECT_COMPLETE:
+        set_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE);
+        break;
+    case DRVWIFI_EVT_TCP_SEND_COMPLETE:
+        set_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE);
+        break;
+    case DRVWIFI_EVT_TCP_RECEIVE_COMPLETE:
+        set_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
+        break;
+    case DRVWIFI_EVT_TCP_SERVER_COMPLETE:
+        set_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SERVER_COMPLETE);
+        break;
+    default:
+        assert(false);
+        break;
+    }
+}
+
+void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, int index)
+{
+    DBGLOG0("mdlstrg_store_program_write");
+    ER er;
+
+    assert(data);
+
+    MDLSTRG_REQUEST_T UPDATE_REQ = {
+        .data_type = MDLSTRG_DATA_TYPE_STORE_PROGRAM,
+        .request_type = MDLSTRG_REQ_TYPE_WRITE,
+        .data = (intptr_t)data,
+        .size = size,
+        .opt1 = index,
+        .opt2 = address,
+    };
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
+    mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
+    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 10000);
+    assert(er == E_OK);
+}
+
+void mdlstrg_store_program_delete(size_t size, int index)
+{
+    DBGLOG0("mdlstrg_store_program_delete");
+    ER er;
+
+    MDLSTRG_REQUEST_T UPDATE_REQ = {
+        .data_type = MDLSTRG_DATA_TYPE_STORE_PROGRAM,
+        .request_type = MDLSTRG_REQ_TYPE_DELETE,
+        .size = size,
+        .opt1 = index,
+    };
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
+    mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
+    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, TMO_FEVR);
+    assert(er == E_OK);
 }

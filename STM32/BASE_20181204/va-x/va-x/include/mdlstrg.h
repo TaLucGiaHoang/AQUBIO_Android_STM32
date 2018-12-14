@@ -30,6 +30,7 @@ enum {
     MDLSTRG_DATA_TYPE_REG_CARD,     // 登録・抹消カード情報
     MDLSTRG_DATA_TYPE_VACANCY_REG_CARD, // 一括登録カード情報
     MDLSTRG_DATA_TYPE_WIFI,         // WiFi情報
+    MDLSTRG_DATA_TYPE_STORE_PROGRAM, // Store program
     MDLSTRG_DATA_TYPE_OPE_LOG,      // 操作ログ
     MDLSTRG_DATA_TYPE_ERR_LOG,      // エラーログ
     MDLSTRG_DATA_TYPE_ROOM_TYPE,    // カードによる部屋の状態フラグ

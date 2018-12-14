@@ -623,7 +623,14 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
         if (ret) {
             DBGLOG0("AP Connect");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE);
-            drvwifi_ap_connect2(s_ssid, s_password);
+
+			DRVWIFI_CONFIG ap;
+			ap.essid_len = strlen(s_ssid);
+			ap.passphrase_len = strlen(s_password);
+		    memcpy(ap.essid, s_ssid, sizeof(s_ssid));
+		    memcpy(ap.passphrase, s_password, sizeof(s_password));
+
+		    drvwifi_ap_connect(drvwifi_callback, (DRVWIFI_CONFIG*)ap);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 30000);
             assert(er == E_OK);
             if (er != E_OK) {
@@ -648,7 +655,13 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
         if (ret) {
             DBGLOG0("TCP connect");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE);
-            drvwifi_tcp_connect((uint8_t*)SERVER_IP, SERVER_PORT);
+			
+			DRVWIFI_TCP_CONFIG tcpcfg;
+			memcpy(tcpcfg.ip_address, (uint8_t*)SERVER_IP, sizeof(SERVER_IP));
+			tcpcfg.ipadr_len = sizeof(SERVER_IP);
+			tcpcfg.port = SERVER_PORT;
+	
+            drvwifi_tcp_connect(drvwifi_callback, (DRVWIFI_TCP_CONFIG*)tcpcfg);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 5000);
             assert(er == E_OK);
             if (er != E_OK) {
@@ -659,7 +672,7 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
         if (ret) {
             DBGLOG0("TCP send");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_SEND_COMPLETE);
-            drvwifi_send((uint8_t*)"OK", 2);
+            drvwifi_send(drvwifi_callback, (uint8_t*)"OK", 2);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
             assert(er == E_OK);
             if (er != E_OK) {
@@ -670,7 +683,7 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
         if (ret) {
             DBGLOG0("TCP Receive Updated message");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
-            drvwifi_receive(s_received_data, 6);
+            drvwifi_receive(drvwifi_callback, s_received_data, 6);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, TMO_FEVR);
             assert(er == E_OK);
             if (er != E_OK) {
@@ -678,7 +691,7 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
             } else {
                 s_received_data[6] = 0;
                 DBGLOG1("Wifi Recv: %s", s_received_data);
-                drvwifi_send((uint8_t*) "OK", 2);
+                drvwifi_send(drvwifi_callback, (uint8_t*) "OK", 2);
                 er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
                 assert(er == E_OK);
             }
@@ -687,7 +700,7 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
         if (ret) {
             DBGLOG0("TCP Receive size");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
-            drvwifi_receive(s_received_data, 4);
+            drvwifi_receive(drvwifi_callback, s_received_data, 4);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, TMO_FEVR);
             assert(er == E_OK);
             if (er != E_OK) {
@@ -700,7 +713,7 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
                     DBGLOG2("Firmware size ERROR: %d, %08x", firmware_size, firmware_size);
                 } else {
                     DBGLOG2("Firmware size: %d, %08x", firmware_size, firmware_size);
-                    drvwifi_send((uint8_t*) "OK", 2);
+                    drvwifi_send(drvwifi_callback, (uint8_t*) "OK", 2);
                     er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
                     assert(er == E_OK);
                 }
@@ -718,7 +731,7 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
                 }
                 DBGLOG1("Wait for: (%d)", receive_length);
                 clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE);
-                drvwifi_receive(s_received_data, receive_length);
+                drvwifi_receive(drvwifi_callback, s_received_data, receive_length);
                 er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_RECEIVE_COMPLETE, TWF_ANDW, &flgptn, 10000);
                 assert(er == E_OK);
                 if (er != E_OK) {
@@ -730,7 +743,7 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
                     mdlstrg_store_program_write(s_received_data, start_address, receive_length, 0);
                     start_address += receive_length;
 
-                    drvwifi_send((uint8_t*) "OK", 2);
+                    drvwifi_send(drvwifi_callback, (uint8_t*) "OK", 2);
                     er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_SEND_COMPLETE, TWF_ANDW, &flgptn, 3000);
                     assert(er == E_OK);
                 }

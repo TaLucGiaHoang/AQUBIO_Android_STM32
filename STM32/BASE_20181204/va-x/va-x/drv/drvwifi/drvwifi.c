@@ -225,7 +225,6 @@ static const int32_t UART_TIMEOUT = 20000;
 #define ATCMD_TCP_SERVER_TIMEOUT    "ATS104=0" // Set TCP connect timeout to 30s
 #define ATCMD_QUERY_IP4_SETTING     "ATNSET=?"
 #define ATCMD_CLOSE_SOCKET          "ATNCLOSE"
-#define ATCMD_DISCONNECT            ATCMD_APDISCONNECT //"ATWD"
 
 // バッファサイズ
 #define RECEIVE_BUF_SIZE	(1024)
@@ -408,7 +407,7 @@ void drvwifi_task(intptr_t exinf)
         switch (blk->msg) {
         case MSG_INITIALIZE:
         {
-            process_msg_initialize2(blk->callback);    // SHC function
+            process_msg_initialize(blk->callback);
             break;
         }
         case MSG_POWER_OFF:
@@ -727,22 +726,22 @@ void process_msg_ap_connect2(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg)
 
     uint8_t cmd[100];
     int result;
-    DBGLOG0("drvwifi_ap_connect() called.....\n");
+    DBGLOG0("process_msg_ap_connect2\n");
 
-    uint8_t essid[DRVWIFI_MAX_ESSID_LEN];
-    uint8_t passphrase[DRVWIFI_MAX_PASSPHRASE_LEN];
-
-    memcpy(essid, cfg->essid, cfg->essid_len);
-    memcpy(passphrase, cfg->passphrase, cfg->passphrase_len);
+//    uint8_t essid[DRVWIFI_MAX_ESSID_LEN];
+//    uint8_t passphrase[DRVWIFI_MAX_PASSPHRASE_LEN];
+//
+//    memcpy(essid, cfg->essid, cfg->essid_len);
+//    memcpy(passphrase, cfg->passphrase, cfg->passphrase_len);
 
     // Disconnect from currently connected Access Point
-    DBGLOG1("SEND: \"%s\"", ATCMD_DISCONNECT);
-    uart_send_at((const uint8_t*) ATCMD_DISCONNECT, sizeof(ATCMD_DISCONNECT) - 1, false);
+    DBGLOG1("SEND: \"%s\"", ATCMD_APDISCONNECT);
+    uart_send_at((const uint8_t*) ATCMD_APDISCONNECT, sizeof(ATCMD_APDISCONNECT) - 1, false);
     result = wifi_get_result();
 
     // Connect to AP
     // "ATWAWPA=<ssid>,<ver>,<ucipher>,<mcipher>,<passphrase>"
-    sprintf((char*)cmd, "%s=%s,%d,%d,%d,%s", "ATWAWPA", essid, 2, 1, 0, passphrase);
+    sprintf((char*)cmd, "%s=%s,%d,%d,%d,%s", "ATWAWPA", cfg->essid, cfg->wpaver, cfg->cipher, cfg->cipher, cfg->passphrase);
 
     // Send command to the WIFI module
     DBGLOG1("SEND: \"%s\"", cmd);
@@ -1262,7 +1261,7 @@ int wifi_get_result(void)
         count = uart_receive_1line(s_context.receive_buf, RECEIVE_BUF_SIZE);
 #if 0
         char* tmp = strdup((char*)s_context.receive_buf);
-        if (count >= 2) tmp[count - 2] = 0;
+        if (count >= 1) tmp[count - 1] = 0; // Remove CR at the end of buffer
         DBGLOG2("Rcv (%d): %s", count, tmp);
 #endif
 

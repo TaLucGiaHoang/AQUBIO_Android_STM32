@@ -93,7 +93,6 @@ static void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2);
 static void print_now_time(APLEVT_EVENT_T* event);
 
 static const FLGPTN FLGPTN_MDLSTRG_REQUEST_COMPLETE =			(0x1 << 0);
-static const FLGPTN FLGPTN_MDLSTRG_INITIALIZE_COMPLETE =		(0x1 << 1);
 
 //
 // 定数
@@ -252,10 +251,6 @@ void aplmain_task(intptr_t exinf)
     // 他アプリから起動されない機能をここで起動
     cmntimer_initialize();	// 共用タイマータスク
     mdlstrg_initialize(mdlstrg_callback);	// ストレージミドル
-
-    // Wait for mdlstrg to be initialized
-    er = twai_flg(FLG_APLMAIN, FLGPTN_MDLSTRG_INITIALIZE_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 30000);
-    assert(er == E_OK);
 
     // 各アプリを起動
     start_apps();
@@ -864,10 +859,6 @@ void mdlstrg_callback(int event, intptr_t opt1, intptr_t opt2)
 {
     DBGLOG1("mdlstrg_callback_main: e=%d", event);
     switch(event) {
-    case MDLSTRG_EVT_INITIALIZE_COMPLETE:
-        DBGLOG0("mdlstrg_callback: MDLSTRG_EVT_INITIALIZE_COMPLETE");
-        set_flg(FLG_APLMAIN, FLGPTN_MDLSTRG_INITIALIZE_COMPLETE);
-        break;
     case MDLSTRG_EVT_REQUEST_COMPLETE:
         DBGLOG0("mdlstrg_callback: MDLSTRG_EVT_REQUEST_COMPLETE");
         set_flg(FLG_APLMAIN, FLGPTN_MDLSTRG_REQUEST_COMPLETE);

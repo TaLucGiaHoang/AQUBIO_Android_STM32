@@ -212,8 +212,8 @@ static void mdlble_callback(int event, intptr_t opt1, intptr_t opt2);
 static void aplble_authenticate(const APLBLE_COMMAND_DATA_T* data);
 static void aplble_set_phone_wifi(const APLBLE_COMMAND_DATA_T* data);
 static void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data);
+static void mdlstrg_store_program_create(size_t size, int index);
 static void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, int index);
-static void mdlstrg_store_program_delete(size_t size, int index);
 
 static void aplble_process_data_1(const MDLBLE_DATA_T* data);
 static int aplble_process_data_1_05(uint8_t* resp_buf, const uint8_t* data, size_t data_len);
@@ -624,15 +624,33 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
             DBGLOG0("AP Connect");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE);
 
-			DRVWIFI_CONFIG ap = {
-		    	.essid = s_ssid,
-		    	.essid_len = strlen(s_ssid),
-		    	.passphrase = s_password,
-		    	.passphrase_len = strlen(s_password),
-			};
+            DRVWIFI_CONFIG ap = {
+                .essid = s_ssid,
+                .essid_len = strlen(s_ssid),
+                .passphrase = s_password,
+                .passphrase_len = strlen(s_password),
+                .wpaver = DRVWIFI_SECURITY_WPA2RNS,
+                .cipher = DRVWIFI_SECURITY_CCMP,
+            };
 
-		    drvwifi_ap_connect(drvwifi_callback, &ap);
+            drvwifi_ap_connect(drvwifi_callback, &ap);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 30000);
+            assert(er == E_OK);
+            if (er != E_OK) {
+                ret = 0;
+            }
+        }
+
+        // Erase STORE PROGRAM AREA
+        if (ret) {
+            MDLSTRG_REQUEST_T DELETE_REQ = {
+                .data_type = MDLSTRG_DATA_TYPE_STORE_PROGRAM,
+                .request_type = MDLSTRG_REQ_TYPE_DELETE,
+                .opt1 = 0,
+            };
+            clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
+            mdlstrg_request(&DELETE_REQ, mdlstrg_callback);
+            er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 10000);
             assert(er == E_OK);
             if (er != E_OK) {
                 ret = 0;
@@ -656,12 +674,12 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
         if (ret) {
             DBGLOG0("TCP connect");
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE);
-			
-			DRVWIFI_TCP_CONFIG tcpcfg = {
-				.ip_address = SERVER_IP,
-				.ipadr_len = sizeof(SERVER_IP),
-				.port = SERVER_PORT,
-			};
+
+            DRVWIFI_TCP_CONFIG tcpcfg = {
+                .ip_address = SERVER_IP,
+                .ipadr_len = sizeof(SERVER_IP),
+                .port = SERVER_PORT,
+            };
 
             drvwifi_tcp_client(drvwifi_callback, &tcpcfg);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 5000);
@@ -723,6 +741,9 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
         }
 
         if (ret) {
+            // Init Store Program Area
+            mdlstrg_store_program_create(firmware_size, 0);
+
             DBGLOG0("Start data transfer");
             uint32_t start_address = 0;
             uint32_t receive_length;
@@ -753,13 +774,8 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
 
             if (!ret) {
                 DBGLOG2("Firmware Received Error: (%d/%d)", start_address, firmware_size);
-
-                // TODO: Mark the new firmware as invalid to be erased next reboot
             } else {
                 DBGLOG1("Firmware Received: (%d)", firmware_size);
-
-                // Store firmware size and set the new_firmware_flag
-                mdlstrg_store_program_delete(firmware_size, 0);
             }
         }
     }
@@ -1556,6 +1572,25 @@ void drvwifi_callback(int32_t evt, int32_t error, intptr_t opt)
     }
 }
 
+void mdlstrg_store_program_create(size_t size, int index)
+{
+    DBGLOG0("mdlstrg_store_program_create");
+    ER er;
+
+    assert(size);
+
+    MDLSTRG_REQUEST_T UPDATE_REQ = {
+        .data_type = MDLSTRG_DATA_TYPE_STORE_PROGRAM,
+        .request_type = MDLSTRG_REQ_TYPE_CREATE,
+        .size = size,
+        .opt1 = index,
+    };
+    clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
+    mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
+    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 10000);
+    assert(er == E_OK);
+}
+
 void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, int index)
 {
     DBGLOG0("mdlstrg_store_program_write");
@@ -1574,22 +1609,5 @@ void mdlstrg_store_program_write(uint8_t* data, uint32_t address, size_t size, i
     clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
     mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
     er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 10000);
-    assert(er == E_OK);
-}
-
-void mdlstrg_store_program_delete(size_t size, int index)
-{
-    DBGLOG0("mdlstrg_store_program_delete");
-    ER er;
-
-    MDLSTRG_REQUEST_T UPDATE_REQ = {
-        .data_type = MDLSTRG_DATA_TYPE_STORE_PROGRAM,
-        .request_type = MDLSTRG_REQ_TYPE_DELETE,
-        .size = size,
-        .opt1 = index,
-    };
-    clr_flg(FLG_APLBLE, ~FLGPTN_MDLSTRG_REQUEST_COMPLETE);
-    mdlstrg_request(&UPDATE_REQ, mdlstrg_callback);
-    er = twai_flg(FLG_APLBLE, FLGPTN_MDLSTRG_REQUEST_COMPLETE, TWF_ANDW, &(FLGPTN){0}, TMO_FEVR);
     assert(er == E_OK);
 }

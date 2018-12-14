@@ -1059,7 +1059,6 @@ char* wifi_get_ip_address(DRVWIFI_CALLBACK_T callback)
 #endif
 
 void wifi_ap_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg)
-// const uint8_t* essid, const uint8_t* passphrase)
 {
     assert(callback);
     assert(cfg);

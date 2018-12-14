@@ -171,6 +171,18 @@ void drvwifi_ap_connect_wps(DRVWIFI_CALLBACK_T callback);
 /* AP切断 */
 void drvwifi_ap_disconnect(DRVWIFI_CALLBACK_T callback);
 
+/* TCP client */
+void drvwifi_tcp_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
+
+/* TCP server */
+void drvwifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
+
+/* Wifi send */
+void drvwifi_send(DRVWIFI_CALLBACK_T callback, const uint8_t* data, size_t size);
+
+/* Wifi receive */
+void drvwifi_receive(DRVWIFI_CALLBACK_T callback, uint8_t* data, size_t size);
+
 /* HTTPS 接続 */
 void drvwifi_https_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_HTTPS_CONFIG* httpcfg);
 
@@ -186,10 +198,6 @@ void drvwifi_https_disconnect(DRVWIFI_CALLBACK_T callback);
 
 /* PING */
 void drvwifi_ping(DRVWIFI_CALLBACK_T callback, DRVWIFI_PING* ping);
-
-void drvwifi_send(const uint8_t* data, size_t size);
-
-void drvwifi_receive(uint8_t* data, size_t size);
 
 /*
  * 内部関数

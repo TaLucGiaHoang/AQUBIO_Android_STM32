@@ -71,10 +71,12 @@ static void mpf_send(int msg, DRVWIFI_CALLBACK_T callback, intptr_t data, size_t
 
 // wifiモジュール初期化
 static void process_msg_initialize(DRVWIFI_CALLBACK_T callback);
+static void process_msg_initialize2(DRVWIFI_CALLBACK_T callback);	// SHC function
 // wifiモジュール電源Off
 static void process_msg_power_off(DRVWIFI_CALLBACK_T callback);
 // APに接続
 static void process_msg_ap_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG* cfg);
+static void process_msg_ap_connect2(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg);	// SHC function
 // WPSでAPに接続
 static void process_msg_ap_connect_wps(DRVWIFI_CALLBACK_T callback);
 // AP切断
@@ -88,13 +90,11 @@ static void process_msg_https_disconnect(DRVWIFI_CALLBACK_T callback);
 // PING送信
 static void process_msg_ping(DRVWIFI_CALLBACK_T callback, DRVWIFI_PING* ping);
 
-static void wifi_ap_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg);
-
 static void wifi_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
 
 static void wifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
 
-static int wifi_get_result(DRVWIFI_CALLBACK_T callback);
+static int wifi_get_result(void);
 
 static void wifi_send(DRVWIFI_CALLBACK_T callback, const uint8_t* data, size_t size);
 
@@ -276,7 +276,7 @@ void drvwifi_initialize(DRVWIFI_CALLBACK_T callback)
 
     // 起動直後はWiFiモジュールをONしない。サーバアクセス時のみ起動する
     // 初期化メッセージを送信
-    // mpf_send(MSG_INITIALIZE, callback, 0, 0);
+    mpf_send(MSG_INITIALIZE, callback, 0, 0);
 }
 
 /*
@@ -396,7 +396,7 @@ void drvwifi_task(intptr_t exinf)
         switch (blk->msg) {
         case MSG_INITIALIZE:
         {
-            process_msg_initialize(blk->callback);
+            process_msg_initialize2(blk->callback);    // SHC function
             break;
         }
         case MSG_POWER_OFF:
@@ -404,17 +404,12 @@ void drvwifi_task(intptr_t exinf)
             process_msg_power_off(blk->callback);
             break;
         }
-        // case MSG_AP_CONNECT: // SHC function
-        // {
-            // wifi_ap_connect(blk->callback, (DRVWIFI_CONFIG*)blk->data);
-            // break;
-        // }
-		case MSG_AP_CONNECT:
+        case MSG_AP_CONNECT:
         {
-            process_msg_ap_connect(blk->callback, (DRVWIFI_CONFIG*)blk->data);
+            process_msg_ap_connect2(blk->callback, (DRVWIFI_CONFIG*)blk->data);	// SHC function
             break;
         }
-		case MSG_AP_CONNECT_WPS:
+        case MSG_AP_CONNECT_WPS:
         {
             process_msg_ap_connect_wps(blk->callback);
             break;
@@ -474,7 +469,7 @@ void drvwifi_task(intptr_t exinf)
  */
 void drvwifi_rx_task(intptr_t exinf)
 {
-    syslog(LOG_NOTICE, "drvwifi_rx_task() starts .");
+    DBGLOG0("drvwifi_rx_task() starts .");
 
     while (true) {
         DRVWIFI_MPFBLK_T* blk = NULL;
@@ -483,7 +478,7 @@ void drvwifi_rx_task(intptr_t exinf)
         assert(er == E_OK);
         switch (blk->msg) {
         case MSG_RECEIVE:
-            wifi_receive((uint8_t*) blk->data, blk->size);
+            wifi_receive(blk->callback, (uint8_t*) blk->data, blk->size);
             break;
         default:
             assert(false);
@@ -590,6 +585,53 @@ void process_msg_initialize(DRVWIFI_CALLBACK_T callback)
 
     // コールバック
     callback(DRVWIFI_EVT_INITIALIZE_COMPLETE, 0, 0);
+}
+
+/*
+ * wifiモジュール初期化
+ */
+void process_msg_initialize2(DRVWIFI_CALLBACK_T callback)
+{
+    assert(callback);
+
+    // WIFIモジュールのリセット(電源OFF->ON)
+    drvcmn_gpio_pin_set(&GPIO_PIN_WIFI_ON, true);
+    dly_tsk(10);
+    drvcmn_gpio_pin_set(&GPIO_PIN_WIFI_ON, false);
+
+    // UART初期化
+    drvcmn_uart_initialize(WIFI_UART, &UART_SETTING);
+
+    // UART読み捨て
+    drvcmn_uart_receive(WIFI_UART, NULL, 1024);
+    dly_tsk(100);	// 100ms待つ
+    drvcmn_uart_cancel_receive(WIFI_UART);
+
+    // WIFIモジュールに初期化コマンド("ATZ")を送る
+    DBGLOG1("SEND: \"%s\"", ATCMD_RESET);
+    uart_send_at((const uint8_t*)ATCMD_RESET, sizeof(ATCMD_RESET) - 1, true);
+
+    // 応答5行受信
+//    int count = 0;
+//    for (int i = 0; i < 5; i++) {
+//        count = uart_receive_1line(s_context.receive_buf, RECEIVE_BUF_SIZE);
+//        DBGLOG2("result (%d): \"%s\"", count, s_context.receive_buf);
+//        if (count == 0) break;
+//    }
+    wifi_get_result();
+
+    // コマンドエコーオフ("ATE0")
+    DBGLOG1("SEND: \"%s\"", ATCMD_ECHO_OFF);
+    uart_send_at((const uint8_t*)ATCMD_ECHO_OFF, sizeof(ATCMD_ECHO_OFF) - 1, true);
+
+    // 応答2行受信
+//    for (int i = 0; i < 2; i++) {
+//        uart_receive_1line(s_context.receive_buf, RECEIVE_BUF_SIZE);
+//        DBGLOG1("result: \"%s\"", s_context.receive_buf);
+//    }
+    if (wifi_get_result() == DRVWIFI_RESULT_OK) {
+        callback(DRVWIFI_EVT_INITIALIZE_COMPLETE, 0, 0);
+    }
 }
 
 /*
@@ -1049,7 +1091,7 @@ void process_msg_ping(DRVWIFI_CALLBACK_T callback, DRVWIFI_PING* ping)
 }
 
 #if 1
-char* wifi_get_ip_address(DRVWIFI_CALLBACK_T callback)
+char* wifi_get_ip_address(void)
 {
     DBGLOG1("SEND: \"%s\"", ATCMD_QUERY_IP4_SETTING);
     uart_send_at((const uint8_t*) ATCMD_QUERY_IP4_SETTING, sizeof(ATCMD_QUERY_IP4_SETTING) - 1, false);
@@ -1058,7 +1100,7 @@ char* wifi_get_ip_address(DRVWIFI_CALLBACK_T callback)
 }
 #endif
 
-void wifi_ap_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg)
+void process_msg_ap_connect2(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg)
 {
     assert(callback);
     assert(cfg);
@@ -1188,7 +1230,7 @@ void wifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
 }
 
 
-int wifi_get_result(DRVWIFI_CALLBACK_T callback)
+int wifi_get_result(void)
 {
     // Parse AT response to get the result
     int count;

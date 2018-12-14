@@ -625,12 +625,12 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE);
 
 			DRVWIFI_CONFIG ap;
+			ap.essid = s_ssid;
 			ap.essid_len = strlen(s_ssid);
+			ap.passphrase = s_password;
 			ap.passphrase_len = strlen(s_password);
-		    memcpy(ap.essid, s_ssid, sizeof(s_ssid));
-		    memcpy(ap.passphrase, s_password, sizeof(s_password));
 
-		    drvwifi_ap_connect(drvwifi_callback, (DRVWIFI_CONFIG*)ap);
+		    drvwifi_ap_connect(drvwifi_callback, &ap);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_AP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 30000);
             assert(er == E_OK);
             if (er != E_OK) {
@@ -657,11 +657,11 @@ void aplble_update_firmware(const APLBLE_COMMAND_DATA_T* data)
             clr_flg(FLG_APLBLE, ~FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE);
 			
 			DRVWIFI_TCP_CONFIG tcpcfg;
-			memcpy(tcpcfg.ip_address, (uint8_t*)SERVER_IP, sizeof(SERVER_IP));
+			tcpcfg.ip_address = SERVER_IP;
 			tcpcfg.ipadr_len = sizeof(SERVER_IP);
 			tcpcfg.port = SERVER_PORT;
 	
-            drvwifi_tcp_connect(drvwifi_callback, (DRVWIFI_TCP_CONFIG*)tcpcfg);
+            drvwifi_tcp_connect(drvwifi_callback, &tcpcfg);
             er = twai_flg(FLG_APLBLE, FLGPTN_DRVWIFI_TCP_CONNECT_COMPLETE, TWF_ANDW, &flgptn, 5000);
             assert(er == E_OK);
             if (er != E_OK) {

@@ -90,15 +90,17 @@ static void process_msg_https_disconnect(DRVWIFI_CALLBACK_T callback);
 // PING送信
 static void process_msg_ping(DRVWIFI_CALLBACK_T callback, DRVWIFI_PING* ping);
 
-static void wifi_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
+static void process_msg_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
 
-static void wifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
+static void process_msg_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
+
+static void process_msg_send(DRVWIFI_CALLBACK_T callback, const uint8_t* data, size_t size);
+
+static void process_msg_receive(DRVWIFI_CALLBACK_T callback, uint8_t* data, size_t size);
+
+static char* wifi_get_ip_address(void);
 
 static int wifi_get_result(void);
-
-static void wifi_send(DRVWIFI_CALLBACK_T callback, const uint8_t* data, size_t size);
-
-static void wifi_receive(DRVWIFI_CALLBACK_T callback, uint8_t* data, size_t size);
 
 static int uart_send(const uint8_t* data, size_t size);
 
@@ -173,7 +175,7 @@ enum {
     MSG_HTTP_POST,
     MSG_HTTP_DISCONNECT,
 	MSG_PING,
-    MSG_TCP_CONNECT,
+    MSG_TCP_CLIENT,
     MSG_TCP_SERVER,
     MSG_SEND,
     MSG_RECEIVE,
@@ -238,8 +240,6 @@ static struct {
     uint8_t receive_post[RECEIVE_POST_SIZE];
 } s_context;
 
-
-// static DRVWIFI_TCP_CONFIG s_tcp_config;
 static char* s_ip_address = NULL;
 
 /*********************************************************************
@@ -324,21 +324,33 @@ void drvwifi_ap_disconnect(DRVWIFI_CALLBACK_T callback)
     mpf_send(MSG_AP_DISCONNECT, callback, 0, 0);	
 }
 
-void drvwifi_tcp_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
+/*
+ * TCP client
+ */
+void drvwifi_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
 {
-	mpf_send(MSG_TCP_CONNECT, callback, (intptr_t)tcpcfg, 0);
+	mpf_send(MSG_TCP_CLIENT, callback, (intptr_t)tcpcfg, 0);
 }
 
+/*
+ * TCP server
+ */
 void drvwifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
 {
 	mpf_send(MSG_TCP_SERVER, callback, (intptr_t)tcpcfg, 0);
 }
 
+/*
+ * Wifi send data
+ */
 void drvwifi_send(DRVWIFI_CALLBACK_T callback, const uint8_t* data, size_t size)
 {
 	mpf_send(MSG_SEND, callback, (intptr_t)data, size);
 }
 
+/*
+ * Wifi receive data
+ */
 void drvwifi_receive(DRVWIFI_CALLBACK_T callback, uint8_t* data, size_t size)
 {
 	mpf_send_rx(MSG_RECEIVE, callback, (intptr_t)data, size);
@@ -419,19 +431,19 @@ void drvwifi_task(intptr_t exinf)
             process_msg_ap_disconnect(blk->callback);
             break;
         }
-        case MSG_TCP_CONNECT:
+        case MSG_TCP_CLIENT:
         {
-            wifi_tcp_client(blk->callback, (DRVWIFI_TCP_CONFIG*)blk->data);
+            process_msg_tcp_client(blk->callback, (DRVWIFI_TCP_CONFIG*)blk->data);
             break;
         }
         case MSG_TCP_SERVER:
         {
-            wifi_tcp_server(blk->callback, (DRVWIFI_TCP_CONFIG*)blk->data);
+            process_msg_tcp_server(blk->callback, (DRVWIFI_TCP_CONFIG*)blk->data);
             break;
         }
         case MSG_SEND:
         {
-            wifi_send(blk->callback, (uint8_t*) blk->data, blk->size);
+            process_msg_send(blk->callback, (uint8_t*) blk->data, blk->size);
             break;
         }
 		case MSG_HTTP_CONNECT:
@@ -478,7 +490,7 @@ void drvwifi_rx_task(intptr_t exinf)
         assert(er == E_OK);
         switch (blk->msg) {
         case MSG_RECEIVE:
-            wifi_receive(blk->callback, (uint8_t*) blk->data, blk->size);
+            process_msg_receive(blk->callback, (uint8_t*) blk->data, blk->size);
             break;
         default:
             assert(false);
@@ -611,24 +623,14 @@ void process_msg_initialize2(DRVWIFI_CALLBACK_T callback)
     DBGLOG1("SEND: \"%s\"", ATCMD_RESET);
     uart_send_at((const uint8_t*)ATCMD_RESET, sizeof(ATCMD_RESET) - 1, true);
 
-    // 応答5行受信
-//    int count = 0;
-//    for (int i = 0; i < 5; i++) {
-//        count = uart_receive_1line(s_context.receive_buf, RECEIVE_BUF_SIZE);
-//        DBGLOG2("result (%d): \"%s\"", count, s_context.receive_buf);
-//        if (count == 0) break;
-//    }
+    // 応答受信
     wifi_get_result();
 
     // コマンドエコーオフ("ATE0")
     DBGLOG1("SEND: \"%s\"", ATCMD_ECHO_OFF);
     uart_send_at((const uint8_t*)ATCMD_ECHO_OFF, sizeof(ATCMD_ECHO_OFF) - 1, true);
 
-    // 応答2行受信
-//    for (int i = 0; i < 2; i++) {
-//        uart_receive_1line(s_context.receive_buf, RECEIVE_BUF_SIZE);
-//        DBGLOG1("result: \"%s\"", s_context.receive_buf);
-//    }
+    // 応答受信
     if (wifi_get_result() == DRVWIFI_RESULT_OK) {
         callback(DRVWIFI_EVT_INITIALIZE_COMPLETE, 0, 0);
     }
@@ -713,6 +715,57 @@ void process_msg_ap_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG* cfg)
 
 	// コールバック
     callback(DRVWIFI_EVT_AP_CONNECT_COMPLETE, ret, 0);
+}
+
+/*
+ *  APに接続
+ */
+void process_msg_ap_connect2(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg)
+{
+    assert(callback);
+    assert(cfg);
+
+    uint8_t cmd[100];
+    int result;
+    DBGLOG0("drvwifi_ap_connect() called.....\n");
+
+    uint8_t essid[DRVWIFI_MAX_ESSID_LEN];
+    uint8_t passphrase[DRVWIFI_MAX_PASSPHRASE_LEN];
+
+    memcpy(essid, cfg->essid, cfg->essid_len);
+    memcpy(passphrase, cfg->passphrase, cfg->passphrase_len);
+
+    // Disconnect from currently connected Access Point
+    DBGLOG1("SEND: \"%s\"", ATCMD_DISCONNECT);
+    uart_send_at((const uint8_t*) ATCMD_DISCONNECT, sizeof(ATCMD_DISCONNECT) - 1, false);
+    result = wifi_get_result();
+
+    // Connect to AP
+    // "ATWAWPA=<ssid>,<ver>,<ucipher>,<mcipher>,<passphrase>"
+    sprintf((char*)cmd, "%s=%s,%d,%d,%d,%s", "ATWAWPA", essid, 2, 1, 0, passphrase);
+
+    // Send command to the WIFI module
+    DBGLOG1("SEND: \"%s\"", cmd);
+    uart_send_at((const uint8_t*)cmd, sizeof(cmd) - 1, false);
+    result = wifi_get_result();
+
+    // Wait for getting IP Address from DHCP
+    dly_tsk(3000);
+
+    // Check IP address
+    char* ip_addr = NULL;
+    for (int i = 0; i < 10; i++) {
+        ip_addr = wifi_get_ip_address();
+        if (ip_addr != NULL) {
+            DBGLOG1("IP: \"%s\"", ip_addr);
+            break;
+        }
+        dly_tsk(1000);
+    }
+
+    if (callback) {
+        callback(DRVWIFI_EVT_AP_CONNECT_COMPLETE, ip_addr, 0);
+    }
 }
 
 /*
@@ -1090,70 +1143,12 @@ void process_msg_ping(DRVWIFI_CALLBACK_T callback, DRVWIFI_PING* ping)
     callback(DRVWIFI_EVT_PING_COMPLETE, ret, 0);
 }
 
-#if 1
-char* wifi_get_ip_address(void)
-{
-    DBGLOG1("SEND: \"%s\"", ATCMD_QUERY_IP4_SETTING);
-    uart_send_at((const uint8_t*) ATCMD_QUERY_IP4_SETTING, sizeof(ATCMD_QUERY_IP4_SETTING) - 1, false);
-    wifi_get_result();
-    return s_ip_address;
-}
-#endif
-
-void process_msg_ap_connect2(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg)
-{
-    assert(callback);
-    assert(cfg);
-
-    uint8_t cmd[100];
-    int result;
-    DBGLOG0("drvwifi_ap_connect() called.....\n");
-
-    uint8_t essid[DRVWIFI_MAX_ESSID_LEN];
-    uint8_t passphrase[DRVWIFI_MAX_PASSPHRASE_LEN];
-
-    memcpy(essid, cfg->essid, cfg->essid_len);
-    memcpy(passphrase, cfg->passphrase, cfg->passphrase_len);
-
-    // Disconnect from currently connected Access Point
-    DBGLOG1("SEND: \"%s\"", ATCMD_DISCONNECT);
-    uart_send_at((const uint8_t*) ATCMD_DISCONNECT, sizeof(ATCMD_DISCONNECT) - 1, false);
-    result = wifi_get_result();
-
-    // Connect to AP
-    // "ATWAWPA=<ssid>,<ver>,<ucipher>,<mcipher>,<passphrase>"
-    sprintf((char*)cmd, "%s=%s,%d,%d,%d,%s", "ATWAWPA", essid, 2, 1, 0, passphrase);
-
-    // Send command to the WIFI module
-    DBGLOG1("SEND: \"%s\"", cmd);
-    uart_send_at((const uint8_t*)cmd, sizeof(cmd) - 1, false);
-    result = wifi_get_result();
-
-    // Wait for getting IP Address from DHCP
-    dly_tsk(3000);
-
-    // Check IP address
-    char* ip_addr = NULL;
-    for (int i = 0; i < 10; i++) {
-        ip_addr = wifi_get_ip_address();
-        if (ip_addr != NULL) {
-            DBGLOG1("IP: \"%s\"", ip_addr);
-            break;
-        }
-        dly_tsk(1000);
-    }
-
-    if (callback) {
-        callback(DRVWIFI_EVT_AP_CONNECT_COMPLETE, ip_addr, 0);
-    }
-}
-
-void wifi_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
+void process_msg_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
 {
     assert(callback);
     assert(tcpcfg);
 
-    DBGLOG0("wifi_tcp_client()\n");
+    DBGLOG0("process_msg_tcp_client()\n");
     int result;
 
     uint8_t ip_addr[DRVWIFI_MAX_IPADR_LEN];
@@ -1177,8 +1172,6 @@ void wifi_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
     uart_send_at((const uint8_t*) ATCMD_TCP_CLIENT_TIMEOUT, strlen(ATCMD_TCP_CLIENT_TIMEOUT) - 1, false);
     result = wifi_get_result();
 
-	// strcpy((char*)s_tcp_config.ip_address, (char*)ip_address);
-	// s_tcp_config.port = port;
     // Connect to TCP server
     uint8_t cmd[100];
     sprintf((char*)cmd, ATCMD_TCP_CLIENT, ip_addr, port);
@@ -1193,12 +1186,12 @@ void wifi_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
     }
 }
 
-void wifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
+void process_msg_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
 {
     assert(callback);
     assert(tcpcfg);
 
-    DBGLOG0("wifi_tcp_server()\n");
+    DBGLOG0("process_msg_tcp_server()\n");
     int result;
 
     uint16_t port;
@@ -1229,6 +1222,37 @@ void wifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg)
     }
 }
 
+void process_msg_send(DRVWIFI_CALLBACK_T callback, const uint8_t* data, size_t size)
+{
+    assert(data);
+    assert(size > 0);
+
+    int error = uart_send(data, size);
+
+    if (callback) {
+        callback(DRVWIFI_EVT_TCP_SEND_COMPLETE, error, 0);
+    }
+}
+
+void process_msg_receive(DRVWIFI_CALLBACK_T callback, uint8_t* data, size_t size)
+{
+    assert(size > 0);
+
+    size_t count = 0;
+    int error = uart_receive_wait(&count, data, size, TMO_FEVR);
+
+    if (callback) {
+        callback(DRVWIFI_EVT_TCP_RECEIVE_COMPLETE, error, count);
+    }
+}
+
+char* wifi_get_ip_address(void)
+{
+    DBGLOG1("SEND: \"%s\"", ATCMD_QUERY_IP4_SETTING);
+    uart_send_at((const uint8_t*) ATCMD_QUERY_IP4_SETTING, sizeof(ATCMD_QUERY_IP4_SETTING) - 1, false);
+    wifi_get_result();
+    return s_ip_address;
+}
 
 int wifi_get_result(void)
 {
@@ -1236,7 +1260,7 @@ int wifi_get_result(void)
     int count;
     do {
         count = uart_receive_1line(s_context.receive_buf, RECEIVE_BUF_SIZE);
-#if DEBUG
+#if 0
         char* tmp = strdup((char*)s_context.receive_buf);
         if (count >= 2) tmp[count - 2] = 0;
         DBGLOG2("Rcv (%d): %s", count, tmp);
@@ -1270,29 +1294,6 @@ int wifi_get_result(void)
     return DRVWIFI_RESULT_OK;
 }
 
-void wifi_send(DRVWIFI_CALLBACK_T callback, const uint8_t* data, size_t size)
-{
-    assert(data);
-    assert(size > 0);
-
-    int error = uart_send(data, size);
-
-    if (callback) {
-        callback(DRVWIFI_EVT_TCP_SEND_COMPLETE, error, 0);
-    }
-}
-
-void wifi_receive(DRVWIFI_CALLBACK_T callback, uint8_t* data, size_t size)
-{
-    assert(size > 0);
-
-    size_t count = 0;
-    int error = uart_receive_wait(&count, data, size, TMO_FEVR);
-
-    if (callback) {
-        callback(DRVWIFI_EVT_TCP_RECEIVE_COMPLETE, error, count);
-    }
-}
 int uart_send(const uint8_t* data, size_t size)
 {
     assert(data);

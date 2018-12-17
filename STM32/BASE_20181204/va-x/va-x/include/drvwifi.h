@@ -50,6 +50,13 @@ typedef struct {
     int cipher;						//暗号アルゴリズム(TKIP or CCMP)
 } DRVWIFI_CONFIG;
 
+/* TCP configuration */
+typedef struct {
+    uint8_t* ip_address;
+	size_t ipadr_len; // DRVWIFI_MAX_IPADR_LEN
+    uint16_t port;
+} DRVWIFI_TCP_CONFIG;
+
 /* HTTPS接続設定 */
 typedef struct {
     uint8_t* hostname;
@@ -74,12 +81,6 @@ typedef struct {
     uint8_t* ip_address;
     size_t ipadr_len;
 } DRVWIFI_PING;
-
-typedef struct {
-    uint8_t* ip_address;
-	size_t ipadr_len; // DRVWIFI_MAX_IPADR_LEN
-    uint16_t port;
-} DRVWIFI_TCP_CONFIG;
 
 /*
  * 定数
@@ -172,7 +173,7 @@ void drvwifi_ap_connect_wps(DRVWIFI_CALLBACK_T callback);
 void drvwifi_ap_disconnect(DRVWIFI_CALLBACK_T callback);
 
 /* TCP client */
-void drvwifi_tcp_connect(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
+void drvwifi_tcp_client(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);
 
 /* TCP server */
 void drvwifi_tcp_server(DRVWIFI_CALLBACK_T callback, DRVWIFI_TCP_CONFIG* tcpcfg);

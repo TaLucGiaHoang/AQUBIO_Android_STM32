@@ -71,7 +71,6 @@ static void mpf_send(int msg, DRVWIFI_CALLBACK_T callback, intptr_t data, size_t
 
 // wifiモジュール初期化
 static void process_msg_initialize(DRVWIFI_CALLBACK_T callback);
-static void process_msg_initialize2(DRVWIFI_CALLBACK_T callback);	// SHC function
 // wifiモジュール電源Off
 static void process_msg_power_off(DRVWIFI_CALLBACK_T callback);
 // APに接続
@@ -599,43 +598,6 @@ void process_msg_initialize(DRVWIFI_CALLBACK_T callback)
 }
 
 /*
- * wifiモジュール初期化
- */
-void process_msg_initialize2(DRVWIFI_CALLBACK_T callback)
-{
-    assert(callback);
-
-    // WIFIモジュールのリセット(電源OFF->ON)
-    drvcmn_gpio_pin_set(&GPIO_PIN_WIFI_ON, true);
-    dly_tsk(10);
-    drvcmn_gpio_pin_set(&GPIO_PIN_WIFI_ON, false);
-
-    // UART初期化
-    drvcmn_uart_initialize(WIFI_UART, &UART_SETTING);
-
-    // UART読み捨て
-    drvcmn_uart_receive(WIFI_UART, NULL, 1024);
-    dly_tsk(100);	// 100ms待つ
-    drvcmn_uart_cancel_receive(WIFI_UART);
-
-    // WIFIモジュールに初期化コマンド("ATZ")を送る
-    DBGLOG1("SEND: \"%s\"", ATCMD_RESET);
-    uart_send_at((const uint8_t*)ATCMD_RESET, sizeof(ATCMD_RESET) - 1, true);
-
-    // 応答受信
-    wifi_get_result();
-
-    // コマンドエコーオフ("ATE0")
-    DBGLOG1("SEND: \"%s\"", ATCMD_ECHO_OFF);
-    uart_send_at((const uint8_t*)ATCMD_ECHO_OFF, sizeof(ATCMD_ECHO_OFF) - 1, true);
-
-    // 応答受信
-    if (wifi_get_result() == DRVWIFI_RESULT_OK) {
-        callback(DRVWIFI_EVT_INITIALIZE_COMPLETE, 0, 0);
-    }
-}
-
-/*
  *  wifiモジュール電源Off
  */
 void process_msg_power_off(DRVWIFI_CALLBACK_T callback)
@@ -727,12 +689,6 @@ void process_msg_ap_connect2(DRVWIFI_CALLBACK_T callback, DRVWIFI_CONFIG *cfg)
     uint8_t cmd[100];
     int result;
     DBGLOG0("process_msg_ap_connect2\n");
-
-//    uint8_t essid[DRVWIFI_MAX_ESSID_LEN];
-//    uint8_t passphrase[DRVWIFI_MAX_PASSPHRASE_LEN];
-//
-//    memcpy(essid, cfg->essid, cfg->essid_len);
-//    memcpy(passphrase, cfg->passphrase, cfg->passphrase_len);
 
     // Disconnect from currently connected Access Point
     DBGLOG1("SEND: \"%s\"", ATCMD_APDISCONNECT);

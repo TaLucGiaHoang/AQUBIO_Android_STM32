@@ -66,15 +66,10 @@ void boot_load(void)
     uint8_t buffer[MAX_BUFFER_SIZE];
     int i;
 
-    // TODO Initialize external flash driver
+    // Initialize external flash driver
     drvqflx_initialize();
 
-    // TODO Get is_new_firmware flag and program size
-//    DB_HEADER_T* db_header = QSPI_BASE + EFLASH_PROGRAM_AREA_ADDR + 4;
-//    DBGLOG3("QFlash Header %d %d %04x", db_header->data_id, db_header->data_len, db_header->db_state);
-//    is_new_firmware = (db_header->db_state == BLOCK_STATE_VALID);
-//    program_size = db_header->data_len;
-
+    // Get is_new_firmware flag and program size
     DB_HEADER_T db_header = {0};
     drvqflx_read(&db_header, EFLASH_PROGRAM_AREA_ADDR + 4, sizeof(DB_HEADER_T));
     DBGLOG3("QFlash Header %d %d %04x", db_header.data_id, db_header.data_len, db_header.db_state);
@@ -82,7 +77,6 @@ void boot_load(void)
     program_size = db_header.data_len;
 
     //DEBUG
-//    is_new_firmware = false;
     uint32_t db_addr = EFLASH_PROGRAM_AREA_ADDR + 16;
 
     if (is_new_firmware) {
@@ -90,14 +84,6 @@ void boot_load(void)
 
         // Initialize internal flash driver
         drviflx_initialize(0);
-
-        //drviflx_protecti(IFLASH_PROGRAM_AREA_ADDR, program_size, false);
-
-        //        // Disable Write-protect for the program area
-        //        clr_flg(FLG_BOOTLOAD, ~FLGPTN_DRVIFLX_PROTECT_COMPLETE);
-        //        drviflx_protect(PROGRAM_ADDRESS, program_size, false, drviflx_callback);
-        //        er = twai_flg(FLG_BOOTLOAD, FLGPTN_DRVIFLX_PROTECT_COMPLETE, TWF_ANDW, &flgptn, 3000);
-        //        assert(er == E_OK);
 
         // Erase program area
         DBGLOG0("Erase program area");
@@ -110,7 +96,7 @@ void boot_load(void)
                 write_length = MAX_BUFFER_SIZE;
             }
 
-            // TODO Load [write_length] bytes from external flash at [start_address] to buffer
+            // Load [write_length] bytes from external flash at [start_address] to buffer
             drvqflx_read(buffer, db_addr + start_address, write_length);
 
             // Write data from buffer to program area

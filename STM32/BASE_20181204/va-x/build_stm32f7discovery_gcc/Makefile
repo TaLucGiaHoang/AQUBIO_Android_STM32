@@ -194,7 +194,7 @@ VAX_APPL_DIR = \
 	$(APPLDIR)/mdl/mdlwifi \
 	$(APPLDIR)/drv/drvpwr \
 	$(APPLDIR)/apl/aplicc \
-#	$(APPLDIR)/apl/aplwifi
+	$(APPLDIR)/apl/aplwifi
 
 #	$(APPLDIR)/apl/aplimgproc \
 #	$(APPLDIR)/apl/testmain \
@@ -258,7 +258,7 @@ VAX_APPL_COBJS = \
 	mdlwifi.o \
 	drvpwr.o \
 	aplicc.o \
-#	aplwifi.o 
+	aplwifi.o 
 
 #	testmain.o \
 

@@ -1331,7 +1331,7 @@ int cmdfunc_authoffset(const char* opt1, const char* opt2)
         .request_type = MDLSTRG_REQ_TYPE_READ,
         .data = (intptr_t)&authu_value,
     };
-    clr_flg(FLG_APLWIFI, ~FLGPTN_MDLSTRG_REQ_COMPLETE);
+    clr_flg(FLG_APLCON, ~FLGPTN_MDLSTRG_REQ_COMPLETE);
     mdlstrg_request(&ROOM_STS_REQ, strg_callback);
     er = twai_flg(FLG_APLCON, FLGPTN_MDLSTRG_REQ_COMPLETE, TWF_ANDW, &(FLGPTN){0}, 3000);
     assert(er == E_OK);
